@@ -46,16 +46,16 @@ data Bool : Set where
 const : {a b : Set} -> a -> b -> a
 const x y = x
 
+data DoorState : Set where
+  DoorOpen : DoorState
+  DoorClosed  : DoorState
+
+data DoorResult : Set where
+  Jammed : DoorResult
+  OK : DoorResult
 
 module DependentStates where
   
-  data DoorState : Set where
-    DoorOpen : DoorState
-    DoorClosed  : DoorState
-
-  data DoorResult : Set where
-    Jammed : DoorResult
-    OK : DoorResult
 
   -- we add an extra type parameter such that the next state can depend
   -- on the result of the previous stateful computation
@@ -110,3 +110,43 @@ We want to have some kind of combinators to form a hierachy of states. Making it
 to implement a high level State diagram (Say HTTP) based on a lower level state diagram
 (say TCP)
 -}
+
+
+-- we observe that the signature of a state machine is the following type:
+
+module States where
+  SM_sig : Set → Set₁
+  SM_sig s = (τ : Set) → s → (τ → s) → Set
+
+  -- a statemachine over some state alphabet Σ
+  record SM (S : Set) : Set₁ where
+    constructor MkSM
+    field
+      -- an initial state
+      init : S
+      -- a predicate that defines the set of final states
+      final : S → Set
+      -- a set of operations which define our state transitions
+      operations : SM_sig S
+      -- a set of operations on how to create new state machines
+      -- from existing states.  (Explained in section 4? dunno what this is so far)
+      creators : SM_sig S
+
+
+  -- lets return to our door example, and implement it in this new framework
+
+  data DoorOp : SM_sig DoorState where
+    Open : DoorOp DoorResult DoorClosed (λ { OK → DoorOpen ; Jammed → DoorClosed })
+    Close : DoorOp Unit DoorOpen (const DoorClosed)
+    RingBell : DoorOp Unit DoorClosed (const DoorClosed)
+
+
+  -- A predicate that checks if something is a final state
+  data DoorFinal : DoorState → Set where
+    ClosedFinal : DoorFinal DoorClosed
+
+  -- the empty state machine Operation
+  data None : {τ : Set} → SM_sig τ where
+  
+  Door : SM DoorState
+  Door = MkSM DoorClosed DoorFinal DoorOp None
