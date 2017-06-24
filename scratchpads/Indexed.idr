@@ -1,5 +1,5 @@
+-- %default total
 -- interaction structure
-%default total
 record IS where
   constructor MkIS
   
@@ -13,15 +13,6 @@ record IS where
 data Free : (is : IS) -> (a : S is -> Type) -> (S is) -> Type where
   Stop : a s -> Free is a s
   Step : (c : C is s) -> ((r : R is s c) -> Free is a (N is c r)) -> Free is a s
-
-
-  
-
--- Type indexed free monad  
-{-data Free : state -> (a : state -> Type) -> Type where
-  Pure : IS state => {s : state} -> a s -> Free s a
-  Step : IS state => {s : state} -> (c : C s)  -> ((r : R s c) -> Free (n c r) a) -> Free s a
--}
 
 namespace OpenMayFail
   data Result = Fail | OK
@@ -54,32 +45,36 @@ namespace OpenMayFail
   pure' : a s -> m a s
   pure' = Stop
   
-  infixl 1 >>==
-  (>>==) : m a s -> ({s' : State} -> a s' -> m b s') -> m b s
-  (Stop x) >>== f = f x
-  (Step c k) >>== f = Step c(\r => k r >>== f)
 
   data At : (x : State) -> (a : Type) -> State -> Type where
     V : a -> At x a x
 
 
-  openFile : m (\b => At b Unit b) Closed
+  openFile : m (\b => At b () b) Closed
   openFile = Step Open (\r => Stop (V ()))
   
-  closeFile : m (\b => At Closed Unit b) Opened
+  closeFile : m (\b => At Closed () b) Opened
   closeFile = Step Close (\r => Stop (V ()))
   
   read : m (At Opened (Maybe Char)) Opened
   read = Step Read (\r => Stop (V r))
   
-  (>>=) : m a s -> ((xy : State ** a xy) -> m b (DPair.fst xy)) -> m b s
-  c >>= f = c >>== \x => f ?a
-  
 
   pure : a -> m (At s a) s
   pure {s} x = Stop (V x)
- 
+      
+  (>>=) : m a s -> ((xy : DPair State a) -> m b (fst xy)) -> m b s
+  (>>=) (Stop {s} x) f = f (s ** x)
+  (>>=) (Step  c k) f = Step c (\r => k r >>= f)
 
-    
- 
- 
+  -- I had to comment %default total because
+  -- Idris' totally checker is not smart enough to figure out that these
+  -- pattern matches are exhaustive
+  notStuck : m (At Closed (Maybe Char)) Closed
+  notStuck = do
+    (Opened ** V ()) <- openFile | (Closed ** v2) => pure Nothing
+    (Opened ** V c) <- read
+    (Closed ** V ()) <- closeFile
+    pure c
+
+  
