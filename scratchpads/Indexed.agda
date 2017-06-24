@@ -1,4 +1,3 @@
--- COPYRIGHT Wouter Swierstra
 -- The basics --
 
 postulate
@@ -203,4 +202,36 @@ module OpenMayFail where
 
   
 
+
+module EdwinExample1 where
+  data DoorState : Set where
+    DoorOpen : DoorState
+    DoorClosed : DoorState
+
+  data DoorResult : Set where
+    DoorJammed : DoorResult
+    OK : DoorResult
+    
+  data DoorCmd : DoorState → Set where
+    Open : DoorCmd DoorClosed
+    Close : DoorCmd DoorOpen
+    Knock : DoorCmd DoorClosed
+
+  Response : (s : DoorState) →  DoorCmd s → Set
+  Response _ Open = DoorResult
+  Response _ Close = Unit
+  Response _ Knock = Unit
+
+  next : { s : DoorState } → (c : DoorCmd s) → Response s c → DoorState
+  next Open DoorJammed = DoorClosed
+  next Open OK = DoorOpen
+  next Close x = DoorClosed
+  next Knock x = DoorClosed
+
+  
+
+    
+  
+    
+    
 
