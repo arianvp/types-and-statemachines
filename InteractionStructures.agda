@@ -34,7 +34,7 @@ Powₐ f x y = x (f y)
 [_] {I} P = {i : I} → P i
 
 
--- Pow  also gives rise to a category for each I,
+-- Pow  also gives rise to a category for each I, 
 -- where the objects are indexed sets  A : Pow I
 -- and the arrows are elements of  [ A -:> B ] for (A B : Pow I)
 _-:>_ : {I : Set} (S : Pow I) → (T : Pow I) → Pow I
@@ -132,11 +132,24 @@ _● : ∀ {I J} → (Φ : J ⇒ I) → Pow J → Pow I
 _>>○_ : ∀ {I J K} (Φ₁ : J ⇒ I) → (Φ₂ : K ⇒ J) → (K ⇒ I)
 _>>○_ Φ₁ Φ₂ =
   record
-  { B =  λ x → (Φ₁ ○) (B Φ₂) x
+  { B =  (Φ₁ ○) (B Φ₂)
   ; C =  λ { a (b₁ , b₂) → Σ (C Φ₁ a b₁) (λ c₁ → C Φ₂ (d Φ₁ a b₁ c₁) (b₂ c₁)) }
   ; d =  λ { a (b₁ , b₂) (c₁ , c₂) → d Φ₂ (d Φ₁ a b₁ c₁) (b₂ c₁) c₂}
   }
   where open _⇒_
+
+module Lol where
+  open _⇒_
+
+  _>>●_ : ∀ {I J K} (Φ₁ : J ⇒ I) → (Φ₂ : K ⇒ J) → (K ⇒ I)
+  _>>●_ Φ₁ Φ₂ =
+    record
+      { B = (Φ₁ ●) (B Φ₂)
+      ; C =  {! !}
+      ; d = {!!}
+      }
+
+open Lol
 
 
 -- interaction structures form a functor
