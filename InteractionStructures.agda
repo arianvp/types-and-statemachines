@@ -1,3 +1,4 @@
+{-# OPTIONS --copatterns #-}
 data Unit : Set where
   unit : Unit
   
@@ -117,6 +118,7 @@ record Monad {W : Set} (F : Pow W → Pow W) : Set1 where
   fp >>= k = k =<< fp
 
 record Comonad {W : Set} (F : Pow W → Pow W) : Set₁ where
+  coinductive
   field
     extract : {P : Pow W} → [ F P -:> P ]
     extend : { P Q : Pow W} → [ F P -:> Q ] → [ F P -:> F Q ]
@@ -195,20 +197,30 @@ freeMonad S =
     graft k (step (s , f)) = step (s , (λ p → graft k (f p)))
 
 
--- a server corresponds to the CoFree Comonad,  It's always alive,
+-- a server corresponds to the Cofree Comonad,  It's always alive,
 -- and should be ready to choose a response of it's liking any time
 -- that it gets any command
 -- Corresponds to Hank's _>>●_
 -- TODO I'm not sure yet if this is correct
-record CoFree● {I : Set} (Φ : I ▸ I) (X : Pow I) (i : I) : Set where
+record Cofree● {I : Set} (Φ : I ▸ I) (X : Pow I) (i : I) : Set where
   coinductive
   field
     alive : X i
-    ready : ((Φ ●) (CoFree● Φ X) ) i
+    ready : ((Φ ●) (Cofree● Φ X) ) i
 
--- TODO show that the CoFree Comonad is a Comonad
+-- TODO show that the Cofree Comonad is a Comonad
 
--- TODO Show that given a Free Client and a CoFree Server, we can run a simulation
+-- TODO Show that given a Free Client and a Cofree Server, we can run a simulation
+
+cofreeComonad :  {I : Set} (S : I ▸ I) → Comonad (Cofree● S)
+cofreeComonad {I} S = {! helper!}
+    {-helperExtract : ∀ { P } → [ Cofree● S P -:> P ]
+    Cofree●.alive (helperExtract x)  = ?
+    helperExtend : ∀ { P Q } →  [ Cofree● S P -:> Q ] → [ Cofree● S P -:> Cofree● S Q ]
+    Cofree●.ready (helperExtend x y) with Cofree●.ready y
+    ...| z = ? 
+-}
+
 
 -- some stuff from Hank's thesis
 abort : {S T : Set} → S ▸ T
