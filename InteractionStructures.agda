@@ -105,7 +105,7 @@ compose-assoc f g h = refl
 -- We define what is a functor between two categories Pow I and Pow J
 record Functor {I J : Set} (F : Pow I → Pow J) : Set1 where
   field
-    mapIx : {A B : Pow I} → [ A -:> B ] → [ F A -:> F B ]
+    mapIx : {X Y : Pow I} → [ X -:> Y ] → [ F X -:> F Y ]
 
 -- what is a monad on Pow?
 record Monad {W : Set} (F : Pow W → Pow W) : Set1 where
@@ -134,43 +134,79 @@ record _▸_ (I J : Set) : Set₁ where
     d : (a : J) → (b : B a) →  (c : C a b) → I
 
 -- We define two monotone predicate transformers:
--- there exists a command, such that for all responses we
--- can transition
+
+-- A client:  I provide a command, and then I need to be
+-- able to handle any kind of response to enter the next state
 _○ : ∀ {I J} → (Φ : J ▸ I) → Pow J → Pow I
 (Φ ○) P a =
   Σ (B a)  (λ x → (y : C a x) → P (d a x y) )
   where open _▸_ Φ
 
--- for all commands, there exists a response, such that we can
--- transition
+-- A server : For any command that I receive, I should be able to
+-- produce a response, and proceed to the next state.
 _● : ∀ {I J} → (Φ : J ▸ I) → Pow J → Pow I
 (Φ ●) P a =
   (x : B a) → Σ (C a x) (λ y → P (d a x y))
   where open _▸_ Φ
 
 
---  Sequential composition flavors
-_>>○_ : ∀ {I J K} (Φ₁ : J ▸ I) → (Φ₂ : K ▸ J) → (K ▸ I)
-_>>○_ Φ₁ Φ₂ =
+
+-- _○ forms a functor in Pow S
+○-Functor : {I J : Set} (S : I ▸ J) → Functor (S ○)
+○-Functor S = record { mapIx = λ { f (s , k) → s , (λ p → f (k p))} } where open _▸_ S
+
+-- _● forms a functor in Pow S
+--  C-u C-u <whatever>
+●-Functor : {I J : Set} (S : I ▸ J) → Functor (S ●)
+●-Functor {I} {J} S =
+    record { mapIx = helper } 
+    where
+        open _▸_ S
+        helper : {X Y : I → Set} →
+                ({i : I} → X i → Y i) →
+                {i : J} →
+                ((x : B i) → Σ (C i x) (λ y → X (d i x y))) →
+                (x : B i) → Σ (C i x) (λ y → Y (d i x y))
+        helper f g x with g x
+        helper f g x | fst₁ , snd₁ = fst₁ ,  f snd₁
+
+-- a client corresponds to a Free Monad, and is given the
+-- choice to provide a command, and then needs to handle any response
+-- and then it can decide to terminate at any time
+-- Corresponds to Hank's _>>○_ 
+data Free○ {I : Set} (Φ : I ▸ I) (X : Pow I) (i : I) : Set where
+  pure : (X -:> Free○ Φ X) i
+  step : ((Φ ○) (Free○ Φ X) -:> Free○ Φ X) i
+
+freeMonad : {I : Set} (S : I ▸ I) → Monad (Free○ S)
+freeMonad S =
   record
-  { B =  (Φ₁ ○) (B Φ₂)
-  ; C =  λ { a (b₁ , b₂) → Σ (C Φ₁ a b₁) (λ c₁ → C Φ₂ (d Φ₁ a b₁ c₁) (b₂ c₁)) }
-  ; d =  λ { a (b₁ , b₂) (c₁ , c₂) → d Φ₂ (d Φ₁ a b₁ c₁) (b₂ c₁) c₂}
+  { pure = pure
+  ; _=<<_ = graft
   }
-  where open _▸_
+  where
+    graft : ∀ {I} {S : I ▸ I} {P Q : I → Set} →
+        ({i : I} → P i → Free○ S Q i) → {i : I} → Free○ S P i → Free○ S Q i
+    graft k (pure x) = k x
+    graft k (step (s , f)) = step (s , (λ p → graft k (f p)))
 
 
+-- a server corresponds to the CoFree Comonad,  It's always alive,
+-- and should be ready to choose a response of it's liking any time
+-- that it gets any command
+-- Corresponds to Hank's _>>●_
+-- TODO I'm not sure yet if this is correct
+record CoFree● {I : Set} (Φ : I ▸ I) (X : Pow I) (i : I) : Set where
+  coinductive
+  field
+    alive : X i
+    ready : ((Φ ●) (CoFree● Φ X) ) i
 
-_>>●_ : ∀ {I J K} (Φ₁ : J ▸ I) → (Φ₂ : K ▸ J) → (K ▸ I)
-_>>●_ Φ₁ Φ₂ =
-  record
-    { B = (Φ₁ ●) (B Φ₂)
-    ; C =  λ { s t → Σ (B Φ₁ s) (λ c1 → C Φ₂ (d Φ₁ s c1 (fst (t c1))) (snd (t c1)))} 
-    ; d = λ { s t (c1 , r2) → d Φ₂ (d Φ₁ s c1 (fst (t c1))) ( snd (t c1)) r2 }
-    }
+-- TODO show that the CoFree Comonad is a Comonad
 
-  where open _▸_
+-- TODO Show that given a Free Client and a CoFree Server, we can run a simulation
 
+-- some stuff from Hank's thesis
 abort : {S T : Set} → S ▸ T
 abort =
   record
@@ -259,42 +295,24 @@ growLeft  x =
   ; d = {!!}
   }
 
-
--- interaction structures form a functor
-IS : { I J : Set} → I ▸ J → (Pow I → Pow J)
-IS {I} {J} S X j = Σ (B j) (λ s → (p : C j s) → X (d j s p ))
-  where open _▸_ S
-
-isFunctor : {I J : Set} (S : I ▸ J) → Functor (IS S)
-isFunctor S = record { mapIx = λ { f (s , k) → s , (λ p → f (k p))} } where open _▸_ S
-
-
--- we now define the Free Monad du jour
-
-data Free {I : Set} (S : I ▸ I) (X : Pow I) (i : I) : Set where
-  pure : (X -:> Free S X) i
-  step : (IS S (Free S X) -:> Free S X) i
-
--- note that:
---  Free S :  Pow S → Pow S
--- i.e. it is a predicate transformer
-
-
-postulate States : Set
-
-mdj : Pow States → Pow States
-mdj = Free (record { B = {!!} ; C = {!!} ; d = {!!} })
-
-freeMonad : {I : Set} (S : I ▸ I) → Monad (Free S)
-freeMonad S =
+--  Sequential composition flavors
+_>>○_ : ∀ {I J K} (Φ₁ : J ▸ I) → (Φ₂ : K ▸ J) → (K ▸ I)
+_>>○_ Φ₁ Φ₂ =
   record
-  { pure = pure
-  ; _=<<_ = graft
+  { B =  (Φ₁ ○) (B Φ₂)
+  ; C =  λ { a (b₁ , b₂) → Σ (C Φ₁ a b₁) (λ c₁ → C Φ₂ (d Φ₁ a b₁ c₁) (b₂ c₁)) }
+  ; d =  λ { a (b₁ , b₂) (c₁ , c₂) → d Φ₂ (d Φ₁ a b₁ c₁) (b₂ c₁) c₂}
   }
-  where
-    graft : ∀ {I} {S : I ▸ I} {P Q : I → Set} →
-        ({i : I} → P i → Free S Q i) → {i : I} → Free S P i → Free S Q i
-    graft k (pure x) = k x
-    graft k (step (s , f)) = step (s , (λ p → graft k (f p)))
+  where open _▸_
 
 
+
+_>>●_ : ∀ {I J K} (Φ₁ : J ▸ I) → (Φ₂ : K ▸ J) → (K ▸ I)
+_>>●_ Φ₁ Φ₂ =
+  record
+    { B = (Φ₁ ●) (B Φ₂)
+    ; C =  λ { s t → Σ (B Φ₁ s) (λ c1 → C Φ₂ (d Φ₁ s c1 (fst (t c1))) (snd (t c1)))} 
+    ; d = λ { s t (c1 , r2) → d Φ₂ (d Φ₁ s c1 (fst (t c1))) ( snd (t c1)) r2 }
+    }
+
+  where open _▸_
