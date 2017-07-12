@@ -212,14 +212,24 @@ record Cofree● {I : Set} (Φ : I ▸ I) (X : Pow I) (i : I) : Set where
 
 -- TODO Show that given a Free Client and a Cofree Server, we can run a simulation
 
-cofreeComonad :  {I : Set} (S : I ▸ I) → Comonad (Cofree● S)
-cofreeComonad {I} S = {! helper!}
-    {-helperExtract : ∀ { P } → [ Cofree● S P -:> P ]
-    Cofree●.alive (helperExtract x)  = ?
-    helperExtend : ∀ { P Q } →  [ Cofree● S P -:> Q ] → [ Cofree● S P -:> Cofree● S Q ]
-    Cofree●.ready (helperExtend x y) with Cofree●.ready y
-    ...| z = ? 
--}
+module  Lol where
+    open Comonad
+    open Cofree●
+    
+    helper : ∀ {I} {S : I ▸ I} {P Q : I → Set} →
+            ({i : I} → Cofree● S P i → Q i) →
+            {i : I} → Cofree● S P i → Cofree● S Q i
+
+    helper x x₁ = {!!}
+    cofreeComonad :  {I : Set} (S : I ▸ I) → Comonad (Cofree● S)
+    extract (cofreeComonad S) = alive
+    extend (cofreeComonad S) =  helper
+   {- 
+        alive (helperExtract x)  = ?
+        helperExtend : ∀ { P Q } →  [ Cofree● S P -:> Q ] → [ Cofree● S P -:> Cofree● S Q ]
+        Cofree●.ready (helperExtend x y) with Cofree●.ready y
+        ...| z = ? 
+    -}
 
 
 -- some stuff from Hank's thesis
