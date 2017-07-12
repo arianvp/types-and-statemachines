@@ -1,3 +1,25 @@
+data Unit : Set where
+  unit : Unit
+  
+data ⊥ : Set where
+    
+record Σ {l} ( S : Set l) (T : S → Set l ) : Set l where
+  constructor _,_
+  field
+    fst : S
+    snd : T fst
+open Σ public
+
+data _+_ {l} (S : Set l) (T : Set l) : Set l where
+  inl : S → S + T
+  inr : T → S + T
+  
+record _*_  {l} (S : Set l) (T : Set l) : Set l where
+  constructor _,_
+  field
+    fst : S
+    snd : T
+open _*_ public
 data _≡_ {l} {X : Set l} (x : X) :  X → Set l where
   refl : x ≡ x
 
@@ -37,9 +59,11 @@ Powₐ f x y = x (f y)
 -- Pow  also gives rise to a category for each I, 
 -- where the objects are indexed sets  A : Pow I
 -- and the arrows are elements of  [ A -:> B ] for (A B : Pow I)
-_-:>_ : {I : Set} (S : Pow I) → (T : Pow I) → Pow I
-(S -:> T) i = S i → T i
+_-:>_ _*:_ _+:_ : {I : Set}(S T : Pow I) -> (Pow I) 
 
+(S -:> T) i = S i -> T i   -- index-respecting functions
+(S *: T) i = S i * T i     -- index-matching pairs
+(S +: T) i = S i + T i     -- index-consistent choice
 
 -- Each object A can be assigned an identity morphism A → A
 idₚ : {I : Set} {i : I} → (A : Pow I) → (A i → A i)
@@ -98,98 +122,179 @@ monadFunctor M =
   record { mapIx = λ f → (_=<<_) (λ z → pure (f z))}
   where open Monad M
     
-    
-record Σ {l} ( S : Set l) (T : S → Set l ) : Set l where
-  constructor _,_
-  field
-    fst : S
-    snd : T fst
-open Σ public
+  
+
 
 -- we now define Peter Hancock's interaction structure
 -- Connor, whouldn't the arrow be the other way around?
-record _⇒_ (I J : Set) : Set₁ where
+record _▸_ (I J : Set) : Set₁ where
   field
     B : Pow J
     C : (a : J) → ( b : B a) → Set
     d : (a : J) → (b : B a) →  (c : C a b) → I
 
--- We define two predicate transformers:
--- there exists a command, such that for all responses
-_○ : ∀ {I J} → (Φ : J ⇒ I) → Pow J → Pow I
+-- We define two monotone predicate transformers:
+-- there exists a command, such that for all responses we
+-- can transition
+_○ : ∀ {I J} → (Φ : J ▸ I) → Pow J → Pow I
 (Φ ○) P a =
   Σ (B a)  (λ x → (y : C a x) → P (d a x y) )
-  where open _⇒_ Φ
+  where open _▸_ Φ
 
--- for all commands, there exists a response
-_● : ∀ {I J} → (Φ : J ⇒ I) → Pow J → Pow I
+-- for all commands, there exists a response, such that we can
+-- transition
+_● : ∀ {I J} → (Φ : J ▸ I) → Pow J → Pow I
 (Φ ●) P a =
   (x : B a) → Σ (C a x) (λ y → P (d a x y))
-  where open _⇒_ Φ
+  where open _▸_ Φ
 
 
--- a[b/c] = d(a,b,c)
-_>>○_ : ∀ {I J K} (Φ₁ : J ⇒ I) → (Φ₂ : K ⇒ J) → (K ⇒ I)
+--  Sequential composition flavors
+_>>○_ : ∀ {I J K} (Φ₁ : J ▸ I) → (Φ₂ : K ▸ J) → (K ▸ I)
 _>>○_ Φ₁ Φ₂ =
   record
   { B =  (Φ₁ ○) (B Φ₂)
   ; C =  λ { a (b₁ , b₂) → Σ (C Φ₁ a b₁) (λ c₁ → C Φ₂ (d Φ₁ a b₁ c₁) (b₂ c₁)) }
   ; d =  λ { a (b₁ , b₂) (c₁ , c₂) → d Φ₂ (d Φ₁ a b₁ c₁) (b₂ c₁) c₂}
   }
-  where open _⇒_
+  where open _▸_
 
-module Lol where
-  open _⇒_
 
-  _>>●_ : ∀ {I J K} (Φ₁ : J ⇒ I) → (Φ₂ : K ⇒ J) → (K ⇒ I)
-  _>>●_ Φ₁ Φ₂ =
-    record
-      { B = (Φ₁ ●) (B Φ₂)
-      ; C =  {! !}
-      ; d = {!!}
-      }
 
-open Lol
+_>>●_ : ∀ {I J K} (Φ₁ : J ▸ I) → (Φ₂ : K ▸ J) → (K ▸ I)
+_>>●_ Φ₁ Φ₂ =
+  record
+    { B = (Φ₁ ●) (B Φ₂)
+    ; C =  λ { s t → Σ (B Φ₁ s) (λ c1 → C Φ₂ (d Φ₁ s c1 (fst (t c1))) (snd (t c1)))} 
+    ; d = λ { s t (c1 , r2) → d Φ₂ (d Φ₁ s c1 (fst (t c1))) ( snd (t c1)) r2 }
+    }
+
+  where open _▸_
+
+abort : {S T : Set} → S ▸ T
+abort =
+  record
+  { B =  λ x → ⊥
+  ; C = λ { a ()}
+  ; d = λ { a () c}
+  }
+
+
+magic : {S T : Set} → S ▸ T
+magic =
+  record
+  { B =  λ x → Unit
+  ; C =  λ a b →  ⊥
+  ; d = λ a b → λ ()
+  }
+
+-- update the state determinisetically
+update : { S  : Set} → (S → S) → S ▸ S
+update f =
+  record
+  { B = λ s → Unit
+  ; C = λ a b → Unit
+  ; d = λ a b c → f a
+  }
+
+-- note that abort = assert(False)
+assert : {S : Set} (F : Pow S) → S ▸ S
+assert F = 
+  record
+  { B = F
+  ; C =  λ a b → Unit
+  ; d = λ a b c → a
+  }
+
+-- magic = assert(True)
+assume : {S : Set} (F : Pow S) → S ▸ S
+assume F =
+  record
+  { B = λ x → Unit
+  ; C = λ a b → F a
+  ; d = λ a b c → a
+  }
+
+-- angelic choice (Given two possible states, choose which
+-- one we want)
+_⊔_ : {S : Set} (Φ₁ : S ▸ S) (Φ₂ : S ▸ S) → S ▸ S
+Φ₁ ⊔ Φ₂ =
+  record
+  { B = (B Φ₁) +: (B Φ₂) 
+  ; C = λ { k (inl x) → C Φ₁ k x
+          ; k (inr x) → C Φ₂ k x
+          }
+  ; d = λ { k (inl x) r → d Φ₁ k x r
+          ; k (inr x) r → d Φ₂ k x r
+          }
+  }
+  where open _▸_
+    
+-- demonic choice
+_⊓_ : {S : Set} (Φ₁ : S ▸ S) (Φ₂ : S ▸ S) → S ▸ S
+Φ₁ ⊓ Φ₂ =
+  record
+  { B =  B Φ₁ *: B Φ₂
+  ; C = λ { k (c1 , c2) →  C Φ₁ k c1 + C Φ₂ k c2 }
+  ; d = λ { k (c1 , c2) (inl x) → d Φ₁ k c1 x 
+          ; k (c1 , c2) (inr x) → d Φ₂ k c2 x
+          } 
+  }
+  where open _▸_
+
+-- add constant information J to the right hand side
+growRight : {I J : Set } → I ▸ I → (I * J) ▸ (I * J)
+growRight  x =
+  record
+  { B = {!!}
+  ; C = {!!}
+  ; d = {!!}
+  }
+  
+growLeft : {I J : Set } → I ▸ I → (J * I) ▸ (J * I)
+growLeft  x =
+  record
+  { B = {!!}
+  ; C = {!!}
+  ; d = {!!}
+  }
 
 
 -- interaction structures form a functor
-IS : { I J : Set} → I ⇒ J → (Pow I → Pow J)
+IS : { I J : Set} → I ▸ J → (Pow I → Pow J)
 IS {I} {J} S X j = Σ (B j) (λ s → (p : C j s) → X (d j s p ))
-  where open _⇒_ S
+  where open _▸_ S
 
-isFunctor : {I J : Set} (S : I ⇒ J) → Functor (IS S)
-isFunctor S = record { mapIx = λ { f (s , k) → s , (λ p → f (k p))} } where open _⇒_ S
+isFunctor : {I J : Set} (S : I ▸ J) → Functor (IS S)
+isFunctor S = record { mapIx = λ { f (s , k) → s , (λ p → f (k p))} } where open _▸_ S
 
 
 -- we now define the Free Monad du jour
 
-data Free {I : Set} (S : I ⇒ I) (X : Pow I) (i : I) : Set where
+data Free {I : Set} (S : I ▸ I) (X : Pow I) (i : I) : Set where
   pure : (X -:> Free S X) i
   step : (IS S (Free S X) -:> Free S X) i
-  
 
-freeMonad : {I : Set} (S : I ⇒ I) → Monad (Free S)
+-- note that:
+--  Free S :  Pow S → Pow S
+-- i.e. it is a predicate transformer
+
+
+postulate States : Set
+
+mdj : Pow States → Pow States
+mdj = Free (record { B = {!!} ; C = {!!} ; d = {!!} })
+
+freeMonad : {I : Set} (S : I ▸ I) → Monad (Free S)
 freeMonad S =
   record
   { pure = pure
   ; _=<<_ = graft
   }
   where
-    graft : ∀ {I} {S : I ⇒ I} {P Q : I → Set} →
+    graft : ∀ {I} {S : I ▸ I} {P Q : I → Set} →
         ({i : I} → P i → Free S Q i) → {i : I} → Free S P i → Free S Q i
     graft k (pure x) = k x
     graft k (step (s , f)) = step (s , (λ p → graft k (f p)))
 
-
-
-data State : Set where
-  Opened Closed : State
-
-data  Command : State → Set where
-  Open : Command Closed
-  Close Read : Command Opened
-
-
-is : State ⇒ State
-is = {!!}
 
