@@ -116,14 +116,18 @@ record Monad {W : Set} (F : Pow W → Pow W) : Set1 where
   _>>=_ : ∀ {P Q w} → F P w → (∀ {v} → P v → F Q v) → F Q w
   fp >>= k = k =<< fp
 
+record Comonad {W : Set} (F : Pow W → Pow W) : Set₁ where
+  field
+    extract : {P : Pow W} → [ F P -:> P ]
+    extend : { P Q : Pow W} → [ F P -:> Q ] → [ F P -:> F Q ]
+  
+
 -- every monad is trivially a  (endo)functor (without proof here)
 monadFunctor : ∀ {W} {F} → Monad {W} F → Functor {W} {W} F
 monadFunctor M =
   record { mapIx = λ f → (_=<<_) (λ z → pure (f z))}
   where open Monad M
     
-  
-
 
 -- we now define Peter Hancock's interaction structure
 -- Connor, whouldn't the arrow be the other way around?
@@ -316,3 +320,4 @@ _>>●_ Φ₁ Φ₂ =
     }
 
   where open _▸_
+
