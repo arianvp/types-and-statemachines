@@ -1,4 +1,5 @@
 {-# OPTIONS --copatterns #-}
+module InteractionStructures where
 data Unit : Set where
   unit : Unit
   
@@ -456,3 +457,48 @@ operations = openFile >>= λ { unit → {!!}}
   where
     open Monad (free○-Monad FILES)
 -}
+
+data ResponseState : Set where
+  StatusLineOpen HeadersOpen BodyOpen ResponseEnded : ResponseState
+  
+
+postulate Status Header : Set
+
+data ResponseCommand : ResponseState → Set where
+  writeStatus : Status → ResponseCommand StatusLineOpen
+  writeHeader : Header → ResponseCommand HeadersOpen
+  closeHeaders : ResponseCommand HeadersOpen
+  send : (body : String) → ResponseCommand BodyOpen
+  end : ResponseCommand BodyOpen
+
+
+ResponseResponse : (i : ResponseState) (j : ResponseCommand i) → Set
+ResponseResponse .StatusLineOpen (writeStatus x) = Unit
+ResponseResponse .HeadersOpen (writeHeader x) = Unit
+ResponseResponse .HeadersOpen closeHeaders = Unit
+ResponseResponse .BodyOpen (send body) = Unit
+ResponseResponse .BodyOpen end = Unit
+
+ResponseNext : (i : ResponseState) (j : ResponseCommand i) → ResponseResponse i j → ResponseState
+ResponseNext .StatusLineOpen (writeStatus x) x₁ = HeadersOpen
+ResponseNext .HeadersOpen (writeHeader x) x₁ = HeadersOpen
+ResponseNext .HeadersOpen closeHeaders x = BodyOpen
+ResponseNext .BodyOpen (send body) x = BodyOpen
+ResponseNext .BodyOpen end x =  ResponseEnded 
+
+
+RESPONSE : ResponseState ▸ ResponseState
+RESPONSE = record { B = ResponseCommand ; C = ResponseResponse ; d = ResponseNext }
+
+status : Status → Free○ RESPONSE (λ x → Unit) StatusLineOpen
+status x = step ((writeStatus x) , (λ y → stop unit))
+
+-- add a header to the response
+header : Header → Free○ RESPONSE  (λ x → Unit) HeadersOpen
+header x = step (writeHeader x , (λ y → stop unit))
+
+
+respond : (body : String) → Free○ RESPONSE (λ x → Unit) ResponseEnded
+respond body = step ({!!} , {!!})
+
+
