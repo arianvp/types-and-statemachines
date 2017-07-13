@@ -458,6 +458,7 @@ operations = openFile >>= λ { unit → {!!}}
     open Monad (free○-Monad FILES)
 -}
 
+
 data ResponseState : Set where
   StatusLineOpen HeadersOpen BodyOpen ResponseEnded : ResponseState
   
@@ -470,6 +471,9 @@ data ResponseCommand : ResponseState → Set where
   closeHeaders : ResponseCommand HeadersOpen
   send : (body : String) → ResponseCommand BodyOpen
   end : ResponseCommand BodyOpen
+  -- some commands can always be executed
+
+  readBody : {x : ResponseState} → ResponseCommand x
 
 
 ResponseResponse : (i : ResponseState) (j : ResponseCommand i) → Set
@@ -478,6 +482,7 @@ ResponseResponse .HeadersOpen (writeHeader x) = Unit
 ResponseResponse .HeadersOpen closeHeaders = Unit
 ResponseResponse .BodyOpen (send body) = Unit
 ResponseResponse .BodyOpen end = Unit
+ResponseResponse _         (readBody) = String
 
 ResponseNext : (i : ResponseState) (j : ResponseCommand i) → ResponseResponse i j → ResponseState
 ResponseNext .StatusLineOpen (writeStatus x) x₁ = HeadersOpen
@@ -485,6 +490,7 @@ ResponseNext .HeadersOpen (writeHeader x) x₁ = HeadersOpen
 ResponseNext .HeadersOpen closeHeaders x = BodyOpen
 ResponseNext .BodyOpen (send body) x = BodyOpen
 ResponseNext .BodyOpen end x =  ResponseEnded 
+ResponseNext y   readBody x = y
 
 
 RESPONSE : ResponseState ▸ ResponseState
@@ -497,8 +503,19 @@ status x = step ((writeStatus x) , (λ y → stop unit))
 header : Header → Free○ RESPONSE  (λ x → Unit) HeadersOpen
 header x = step (writeHeader x , (λ y → stop unit))
 
+-- read the request context. This is always available in any state
+readBody' : ∀ {s} → Free○ RESPONSE (λ x → String) s
+readBody' = step (readBody , stop)
 
 respond : (body : String) → Free○ RESPONSE (λ x → Unit) ResponseEnded
 respond body = step ({!!} , {!!})
+
+-- a server goes through the entire Webmachine statemachine
+Server : Pow ResponseState → Set
+Server X =  Free○ RESPONSE X ResponseEnded
+
+
+handler : Server (λ x → Unit)
+handler  = {!!}
 
 
