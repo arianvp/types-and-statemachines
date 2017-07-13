@@ -2,8 +2,22 @@
 data Unit : Set where
   unit : Unit
   
+data Maybe (a : Set) : Set where
+  Nothing : Maybe a
+  Just  : a → Maybe a 
+
 data ⊥ : Set where
     
+data Nat : Set where
+  zero : Nat
+  suc  : Nat -> Nat
+{-# BUILTIN NATURAL Nat #-}
+
+_+N_ : Nat -> Nat -> Nat
+zero  +N n = n
+suc m +N n = suc (m +N n)
+infixr 3 _+N_
+
 record Σ {l} ( S : Set l) (T : S → Set l ) : Set l where
   constructor _,_
   field
@@ -181,19 +195,19 @@ _● : ∀ {I J} → (Φ : J ▸ I) → Pow J → Pow I
 -- and then it can decide to terminate at any time
 -- Corresponds to Hank's _>>○_ 
 data Free○ {I : Set} (Φ : I ▸ I) (X : Pow I) (i : I) : Set where
-  pure : (X -:> Free○ Φ X) i
+  stop : (X -:> Free○ Φ X) i
   step : ((Φ ○) (Free○ Φ X) -:> Free○ Φ X) i
 
-freeMonad : {I : Set} (S : I ▸ I) → Monad (Free○ S)
-freeMonad S =
+free○-Monad : {I : Set} (S : I ▸ I) → Monad (Free○ S)
+free○-Monad S =
   record
-  { pure = pure
+  { pure = stop
   ; _=<<_ = graft
   }
   where
     graft : ∀ {I} {S : I ▸ I} {P Q : I → Set} →
         ({i : I} → P i → Free○ S Q i) → {i : I} → Free○ S P i → Free○ S Q i
-    graft k (pure x) = k x
+    graft k (stop x) = k x
     graft k (step (s , f)) = step (s , (λ p → graft k (f p)))
 
 
@@ -278,7 +292,7 @@ assume F =
   }
 
 -- angelic choice (Given two possible states, choose which
--- one we want)
+-- one we want) (client)
 _⊔_ : {S : Set} (Φ₁ : S ▸ S) (Φ₂ : S ▸ S) → S ▸ S
 Φ₁ ⊔ Φ₂ =
   record
@@ -292,7 +306,8 @@ _⊔_ : {S : Set} (Φ₁ : S ▸ S) (Φ₂ : S ▸ S) → S ▸ S
   }
   where open _▸_
     
--- demonic choice
+-- demonic choice we need to be able to respond to both
+-- (server)
 _⊓_ : {S : Set} (Φ₁ : S ▸ S) (Φ₂ : S ▸ S) → S ▸ S
 Φ₁ ⊓ Φ₂ =
   record
@@ -308,18 +323,27 @@ _⊓_ : {S : Set} (Φ₁ : S ▸ S) (Φ₂ : S ▸ S) → S ▸ S
 growRight : {I J : Set } → I ▸ I → (I * J) ▸ (I * J)
 growRight  x =
   record
-  { B = {!!}
-  ; C = {!!}
-  ; d = {!!}
+  { B = λ { (i , _) → B x i }
+  ; C = λ { (i , _) b → C x i b}
+  ; d = λ { (i , j) b c → d x i b c , j }
   }
-  
+  where open _▸_
+
+-- add constant information J to the left hand site 
 growLeft : {I J : Set } → I ▸ I → (J * I) ▸ (J * I)
 growLeft  x =
   record
-  { B = {!!}
-  ; C = {!!}
-  ; d = {!!}
+  { B = λ { (_ , i) → B x i }
+  ; C = λ { (_ , i) b → C x i b}
+  ; d = λ { (j , i) b c → j , d x i b c }
   }
+  where open _▸_
+
+-- combine two interfaces that operate independently on separate
+-- state.  Commands from one do not affect the other
+_⊗_ : {I J : Set} → I ▸ I → J ▸ J → (I * J) ▸ (I * J)
+_⊗_ {I} {J} x y with growRight {I} {J} x | growLeft {J} {I} y
+_⊗_ {I} {J} x y | record { B = B ; C = C ; d = d } | record { B = B₁ ; C = C₁ ; d = d₁ } = record { B = {!!} ; C = {!!} ; d = {!!} }
 
 --  Sequential composition flavors
 _>>○_ : ∀ {I J K} (Φ₁ : J ▸ I) → (Φ₂ : K ▸ J) → (K ▸ I)
@@ -343,3 +367,92 @@ _>>●_ Φ₁ Φ₂ =
 
   where open _▸_
 
+
+
+-- magic is an interaction structure without operations
+magically : Free○ magic (λ _ → Unit) unit
+magically  = pure unit  >>= λ x → pure x 
+  where
+    open Monad (free○-Monad {Unit} magic)
+
+-- what does this do exactly, nobody is sure
+updating : {i : Nat} → Free○ (update (_+N_ 1)) (λ x → Nat) i
+updating = step (unit , (λ { unit → stop 5}))
+  where
+    open Monad (free○-Monad (update (_+N_ 1)))
+
+
+data Bool : Set where tt ff : Bool
+
+postulate Char : Set
+{-# BUILTIN CHAR Char #-}
+
+postulate String : Set
+{-# BUILTIN STRING String #-}
+
+
+data WriteState : Set where
+  opened closed : WriteState
+
+data WriteCommand : WriteState → Set where
+  openWrite  : (fileName : String) → WriteCommand closed
+  writeChar  : Char                → WriteCommand opened
+  closeWrite :                       WriteCommand opened
+
+WriteResponse : (j : WriteState) (c : WriteCommand j) → Set
+WriteResponse .closed (openWrite fileName) = WriteState
+WriteResponse .opened (writeChar x) = Unit
+WriteResponse .opened closeWrite = Unit
+
+writeNext : (j : WriteState) (c : WriteCommand j) → WriteResponse j c → WriteState
+writeNext .closed (openWrite fileName) r = opened
+writeNext .opened (writeChar x) r = opened
+writeNext .opened closeWrite r = closed
+
+WRITE : WriteState ▸ WriteState
+WRITE = record { B = WriteCommand ; C = WriteResponse ; d = writeNext }
+
+data ReadState : Set where
+  opened : (eof : Bool) → ReadState
+  closed : ReadState
+
+data ReadCommand : ReadState → Set where
+  openRead : (fileName : String) → ReadCommand closed
+  -- we can only read if we're not at EOF
+  readChar : ReadCommand (opened tt)
+  closeRead : {eof : Bool} → ReadCommand (opened eof)
+
+
+ReadResponse : (j : ReadState) (c : ReadCommand j) → Set
+ReadResponse .closed (openRead fileName) = Bool
+ReadResponse .(opened tt) readChar = Maybe Char
+ReadResponse .(opened _) closeRead = Unit
+
+readNext : (j : ReadState) (c : ReadCommand j) → ReadResponse j c → ReadState
+readNext .closed (openRead fileName) eof = opened eof
+readNext .(opened tt) readChar Nothing =  opened tt
+readNext .(opened tt) readChar (Just x) = opened ff
+readNext .(opened _) closeRead r = closed 
+
+READ : ReadState ▸ ReadState
+READ = record { B = ReadCommand ; C = ReadResponse ; d = readNext }
+
+-- Now we want to combine READ and WRITE for a CP interface
+
+
+{-
+openFile : Free○ FILES  (λ x → Unit) FileClosed
+openFile = {!!}  -- step (OpenFile , (λ { t → stop unit ; f → stop  unit }))
+
+readFile : Free○ FILES (λ x → Maybe Char) FileOpened
+readFile = step (ReadFile , (λ y →  stop y))
+
+closeFile : Free○ FILES (λ x → Unit) FileOpened
+closeFile = step (CloseFile , (λ y → stop y) )
+
+
+operations : Free○ FILES (λ x → Char) FileClosed
+operations = openFile >>= λ { unit → {!!}} 
+  where
+    open Monad (free○-Monad FILES)
+-}
