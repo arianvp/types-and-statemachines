@@ -576,10 +576,12 @@ respond body = send body >>= λ { (at x) → end }
   where open Monad (free○-Monad RESPONSE)
 
 -- if we get two request flows, we can decide which one we take... interesting
+-- i'm not yet sure how this is useful
 test : Free○ (RESPONSE ⊔ RESPONSE) (AtKey Unit ResponseEnded) StatusLineOpen
 test = step (inr GetRequestContext , (λ { y → {! !}} ))
 
 -- if we get two flows, we must complete both flows ... intersting
+-- i'm not yet sure how this is useful
 test2 : Free○ (RESPONSE ⊓ RESPONSE) (AtKey Unit ResponseEnded) StatusLineOpen
 test2 = step ((GetRequestContext , GetRequestContext) , (λ { (inl x) → {!!} ; (inr x) → {!!}}))
 
@@ -622,3 +624,8 @@ server =
     denyAccess})
   where open Monad (free○-Monad RESPONSE)
 
+
+-- now to run a server we need a function:
+-- given a natural transformation between the ○ functor and IO,
+-- we are given a monad homomorphism from Free○ to IO
+--  foldFree (∀ {x} → (Φ ○) x i  → IO x) → Free○ a i → IO a
