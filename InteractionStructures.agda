@@ -60,6 +60,7 @@ _∘_ : {A B C : Set} → (A → B) → (B → C) → (A → C)
 Pow : (X : Set) → Set₁
 Pow X = X → Set
 
+-- If Pow gives us a predicate, then the functor over Pow is what we call a predicate transformer
 -- and we can now show that Pow is indeed a functor in Set
 -- Or:  any function on sets, can be turned into a function on predicates.
 -- I.e.  what Peter Hancock calls a "Predicate Transformer"
@@ -67,7 +68,8 @@ Powₐ : { X Y : Set} → (f : X → Y) → (Pow Y → Pow X)
 Powₐ f x y = x (f y)
 
 
--- the type of a witness that a predicate is always true:
+-- the type of a witness that a predicate is always true, because it holds for each argument
+-- of the predicate
 [_] : {I : Set}(P : Pow I) → Set
 [_] {I} P = {i : I} → P i
 
@@ -381,7 +383,7 @@ _>>●_ Φ₁ Φ₂ =
 
   where open _▸_
 
-
+-- whatthefuck screams loudly, and then concludes everything is fine
 whatthefuck : {A : Set} → ⊥ → A
 whatthefuck ()
 
@@ -415,6 +417,8 @@ aborting● : Free● abort (λ _ → Unit) unit
 aborting● = step (λ contradiction → (whatthefuck contradiction) , stop unit)
 
 
+-- lunits : {T : Set} (IS : T ▸ T) (t : T) → (IS ⊔ magic) t ≡ IS t
+-- lunits record { B = B ; C = C ; d = d } = {!!}
 
 -- what does this do exactly, nobody is sure
 updating : {i : Nat} → Free○ (update (_+N_ 1)) (λ x → Nat) i
@@ -503,7 +507,15 @@ data ResponseState : Set where
   StatusLineOpen HeadersOpen BodyOpen ResponseEnded : ResponseState
   
 
-postulate Status Header Request : Set
+data Status : Set where
+  Ok : Status
+  NotFound : Status
+  Unauthorized : Status
+
+data Header : Set where
+  WWWAuthenticate : String → Header
+  
+postulate Request : Set
 
 data ResponseCommand : ResponseState → Set where
   WriteStatus : Status → ResponseCommand StatusLineOpen
@@ -550,7 +562,7 @@ closeHeaders : Free○ RESPONSE (AtKey Unit BodyOpen) HeadersOpen
 closeHeaders = step ( CloseHeaders , (λ y → stop (at y)) )
 
 writeHeaders : Header → Free○ RESPONSE (AtKey Unit BodyOpen) HeadersOpen
-writeHeaders x = writeHeader x >>= (λ { (at _) → closeHeaders})
+writeHeaders x = writeHeader x >>= ( λ { (at x₁) → closeHeaders }) 
   where open Monad (free○-Monad RESPONSE)
 
 send : String → Free○ RESPONSE (AtKey Unit BodyOpen) BodyOpen
@@ -570,11 +582,35 @@ respond body = send body >>= λ { (at x) → end }
 
 
 -- a server goes through the entire Webmachine statemachine
-Server : Pow ResponseState → Set
-Server X =  Free○ RESPONSE X ResponseEnded
+Server :  (X : Set) → Set
+Server X =  Free○ RESPONSE (AtKey X ResponseEnded) StatusLineOpen
 
 
-handler : Server (λ x → Unit)
-handler  = {!!}
+-- denyAccess spits out unauthorized and aborts the request
+denyAccess : Free○ RESPONSE (AtKey Unit ResponseEnded) StatusLineOpen
+denyAccess  =
+  writeStatus  Unauthorized >>= λ { (at x) →
+  writeHeader (WWWAuthenticate "realm arian") >>= λ { (at x₁) →
+  closeHeaders >>= λ { (at x₂) → end}}} 
+  where open Monad (free○-Monad RESPONSE)
+
+
+if_then_else : ∀ {A} (b : Bool) → A → A → A
+if tt then y else z = y
+if ff then y else z = z
+
+postulate urlIsAllowed : Request → Bool
+
+server : Server Unit
+server =
+  getRequestContext >>= (λ { (at request) →
+  if urlIsAllowed request
+  then
+    writeStatus Ok >>= (λ { (at x) →
+     closeHeaders >>= (λ { (at x₁) →
+     respond "welcome to my server" }) })
+  else
+    denyAccess})
+  where open Monad (free○-Monad RESPONSE)
 
 
