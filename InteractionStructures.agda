@@ -179,7 +179,6 @@ _● : ∀ {I J} → (Φ : J ▸ I) → Pow J → Pow I
 ○-Functor S = record { mapIx = λ { f (s , k) → s , (λ p → f (k p))} } where open _▸_ S
 
 -- _● forms a functor in Pow S
---  C-u C-u <whatever>
 ●-Functor : {I J : Set} (S : I ▸ J) → Functor (S ●)
 ●-Functor {I} {J} S =
     record { mapIx = helper } 
@@ -417,9 +416,6 @@ aborting● : Free● abort (λ _ → Unit) unit
 aborting● = step (λ contradiction → (whatthefuck contradiction) , stop unit)
 
 
--- lunits : {T : Set} (IS : T ▸ T) (t : T) → (IS ⊔ magic) t ≡ IS t
--- lunits record { B = B ; C = C ; d = d } = {!!}
-
 -- what does this do exactly, nobody is sure
 updating : {i : Nat} → Free○ (update (_+N_ 1)) (λ x → Nat) i
 updating = step (unit , (λ { unit → stop 5}))
@@ -579,6 +575,19 @@ respond : (body : String) → Free○ RESPONSE (AtKey Unit ResponseEnded) BodyOp
 respond body = send body >>= λ { (at x) → end }
   where open Monad (free○-Monad RESPONSE)
 
+-- if we get two request flows, we can decide which one we take... interesting
+test : Free○ (RESPONSE ⊔ RESPONSE) (AtKey Unit ResponseEnded) StatusLineOpen
+test = step (inr GetRequestContext , (λ { y → {! !}} ))
+
+-- if we get two flows, we must complete both flows ... intersting
+test2 : Free○ (RESPONSE ⊓ RESPONSE) (AtKey Unit ResponseEnded) StatusLineOpen
+test2 = step ((GetRequestContext , GetRequestContext) , (λ { (inl x) → {!!} ; (inr x) → {!!}}))
+
+-- Perhaps we could use this to look at the context, and choose if we do HTTP1 or HTTP2 ?
+postulate HTTP1 HTTP2 : ResponseState ▸ ResponseState
+httpserver : Free○ (HTTP1 ⊔ HTTP2) (AtKey Unit ResponseEnded) StatusLineOpen
+httpserver = step {!!}
+
 
 
 -- a server goes through the entire Webmachine statemachine
@@ -595,7 +604,7 @@ denyAccess  =
   where open Monad (free○-Monad RESPONSE)
 
 
-if_then_else : ∀ {A} (b : Bool) → A → A → A
+if_then_else : {A : Set} (b : Bool) → A → A → A
 if tt then y else z = y
 if ff then y else z = z
 
@@ -612,5 +621,4 @@ server =
   else
     denyAccess})
   where open Monad (free○-Monad RESPONSE)
-
 
