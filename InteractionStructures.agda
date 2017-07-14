@@ -360,6 +360,7 @@ _⊗_ {I} {J} x y with growRight {I} {J} x | growLeft {J} {I} y
 _⊗_ {I} {J} x y | record { B = B ; C = C ; d = d } | record { B = B₁ ; C = C₁ ; d = d₁ } = record { B = {!!} ; C = {!!} ; d = {!!} }
 
 --  Sequential composition flavors
+-- note that we have folded these into the Free monad definitions. we do not need them
 _>>○_ : ∀ {I J K} (Φ₁ : J ▸ I) → (Φ₂ : K ▸ J) → (K ▸ I)
 _>>○_ Φ₁ Φ₂ =
   record
@@ -368,7 +369,6 @@ _>>○_ Φ₁ Φ₂ =
   ; d =  λ { a (b₁ , b₂) (c₁ , c₂) → d Φ₂ (d Φ₁ a b₁ c₁) (b₂ c₁) c₂}
   }
   where open _▸_
-
 
 
 _>>●_ : ∀ {I J K} (Φ₁ : J ▸ I) → (Φ₂ : K ▸ J) → (K ▸ I)
@@ -385,19 +385,36 @@ _>>●_ Φ₁ Φ₂ =
 whatthefuck : {A : Set} → ⊥ → A
 whatthefuck ()
 
--- magic can not be served, as we'd have to produce a contradiction
-magically● : Free● magic (λ _ → Unit) unit
-magically● = step (λ x → {!!} , {!!})
+--- We continue to prove some interesting properties about interaction structures
 
--- an abort can not be consumed, as we'd have to produce a contradiction
-abort○ : Free○ abort (λ _ → Unit) unit
-abort○ = step ({!!} , {!!})
+-- Note. Agda will not normalize types by default, but when looking at holes
+-- in hte case of using interaction structures, we do want normalization!
 
+-- Type  C-u Cu C-c C-, for the normalized type 
+
+-- if we try to serve a magic, the only choice is stopping immediately,
+-- ortherwise we end up in a contradiction
+magically● : Free● magic (λ _ → Unit) unit → Unit + ⊥
+magically● (stop x) = inl x
+magically● (step x) with x unit
+magically● (step x) | contradiction , _ = inr  contradiction
 
 -- when magic is consumed, we are given evidence of a contradiction, hence we
--- can conclude anything and continue
+-- can conclude anything and continue. Hence magic can always be consumed
 magically○ : Free○ magic (λ _ → Unit) unit
 magically○  =  step (unit , (λ contradiction → whatthefuck contradiction))
+
+-- an aborting computation must always stop immediatelly, any other action
+-- is a contradiction
+aborting○ : Free○ abort (λ _ → Unit) unit → Unit + ⊥
+aborting○ (stop x) = inl x
+aborting○ (step (contra , _)) = inr contra
+
+-- abort can always be produced
+aborting● : Free● abort (λ _ → Unit) unit
+aborting● = step (λ contradiction → (whatthefuck contradiction) , stop unit)
+
+
 
 -- what does this do exactly, nobody is sure
 updating : {i : Nat} → Free○ (update (_+N_ 1)) (λ x → Nat) i
