@@ -625,7 +625,67 @@ server =
   where open Monad (free○-Monad RESPONSE)
 
 
+
 -- now to run a server we need a function:
--- given a natural transformation between the ○ functor and IO,
--- we are given a monad homomorphism from Free○ to IO
---  foldFree (∀ {x} → (Φ ○) x i  → IO x) → Free○ a i → IO a
+-- given a natural transformation between the ○ functor and m
+-- we are given a monad homomorphism from Free○ to m
+--  foldFree (∀ {x} → (Φ ○) x i  → m x) → Free○ a i → m a
+
+-- now to show that interaction structures compose
+
+-- by interpreting Free○ HIGHLEVEL   as Free○ LOWLEVEL
+-- by showing there is a natural transformation between the two
+-- however, HIGHLEVEL, and LOWLEVEL are Interaction structures indexed over different state
+-- so we need to do some more massaging
+
+Driver :
+  {I J : Set}
+  (Sync : I → J → Set)
+  (Hi : I ▸ I)
+  (Lo : J ▸ J)
+  → Set
+
+Driver {I} {J} Sync Hi Lo
+  = ∀ i j
+  → Sync i j
+  → (c : B Hi i)
+  → Σ (B Lo j) λ c'
+  → (r' : C Lo j c')
+  → Σ (C Hi i c) λ r
+  → Sync (d Hi i c r) (d Lo j c' r') 
+  where
+    open _▸_
+
+drive :
+  { I J : Set}
+  {Sync : I → J → Set}
+  {Hi : I ▸ I} {Lo : J ▸ J}
+  (D : Driver Sync Hi Lo)
+  {X : Pow I}
+  (i : I)(j : J)
+  (ij : Sync i j) →
+  (Hi ○) X i → (Lo ○) (λ j → Σ I λ i → Sync i j * X i) j
+
+drive = λ D i j ij x → {!!} , {!!}
+  
+  
+    
+data HaskellIOCommand : Set where
+  putStrLn : String → HaskellIOCommand
+  readLine : HaskellIOCommand
+
+HaskellIOResponse : HaskellIOCommand → Set
+HaskellIOResponse (putStrLn x) = Unit
+HaskellIOResponse readLine = String
+
+
+HASKELLIO : Unit ▸ Unit
+HASKELLIO = record { B =  λ x → HaskellIOCommand ; C = λ x → HaskellIOResponse ; d = λ a b c → unit }
+
+
+
+-- Server X =  Free○ RESPONSE (AtKey X ResponseEnded) StatusLineOpen
+runServer : ∀ {X} → Free○ RESPONSE (AtKey X ResponseEnded)  StatusLineOpen  → Free○ HASKELLIO (λ x → X) unit
+runServer (stop ())
+runServer (step (WriteStatus x , snd₁)) = step {!!}
+runServer (step (GetRequestContext , snd₁)) = step {!!}
