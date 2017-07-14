@@ -199,6 +199,10 @@ data Free○ {I : Set} (Φ : I ▸ I) (X : Pow I) (i : I) : Set where
   stop : (X -:> Free○ Φ X) i
   step : ((Φ ○) (Free○ Φ X) -:> Free○ Φ X) i
 
+data Free● {I : Set} (Φ : I ▸ I) (X : Pow I) (i : I) : Set where
+  stop : (X -:> Free● Φ X) i
+  step : ((Φ ●) (Free● Φ X) -:> Free● Φ X) i
+
 {-  Note that we could have parameterized over the functor instead,
     yielding your  free monad definition that you are used to, however,
     we do not get Agda concvinced that this data type is strictly positive,
@@ -378,12 +382,22 @@ _>>●_ Φ₁ Φ₂ =
   where open _▸_
 
 
+whatthefuck : {A : Set} → ⊥ → A
+whatthefuck ()
 
--- magic is an interaction structure without operations
-magically : Free○ magic (λ _ → Unit) unit
-magically  = pure unit  >>= λ x → pure x 
-  where
-    open Monad (free○-Monad {Unit} magic)
+-- magic can not be served, as we'd have to produce a contradiction
+magically● : Free● magic (λ _ → Unit) unit
+magically● = step (λ x → {!!} , {!!})
+
+-- an abort can not be consumed, as we'd have to produce a contradiction
+abort○ : Free○ abort (λ _ → Unit) unit
+abort○ = step ({!!} , {!!})
+
+
+-- when magic is consumed, we are given evidence of a contradiction, hence we
+-- can conclude anything and continue
+magically○ : Free○ magic (λ _ → Unit) unit
+magically○  =  step (unit , (λ contradiction → whatthefuck contradiction))
 
 -- what does this do exactly, nobody is sure
 updating : {i : Nat} → Free○ (update (_+N_ 1)) (λ x → Nat) i
@@ -472,7 +486,7 @@ data ResponseState : Set where
   StatusLineOpen HeadersOpen BodyOpen ResponseEnded : ResponseState
   
 
-postulate Status Header : Set
+postulate Status Header Request : Set
 
 data ResponseCommand : ResponseState → Set where
   WriteStatus : Status → ResponseCommand StatusLineOpen
@@ -482,7 +496,7 @@ data ResponseCommand : ResponseState → Set where
   End : ResponseCommand BodyOpen
   -- some commands can always be executed
 
-  ReadBody : {x : ResponseState} → ResponseCommand x
+  GetRequestContext : {x : ResponseState} → ResponseCommand x
 
 
 ResponseResponse : (i : ResponseState) (j : ResponseCommand i) → Set
@@ -491,7 +505,7 @@ ResponseResponse .HeadersOpen (WriteHeader x) = Unit
 ResponseResponse .HeadersOpen CloseHeaders = Unit
 ResponseResponse .BodyOpen (Send body) = Unit
 ResponseResponse .BodyOpen End = Unit
-ResponseResponse _         (ReadBody) = String
+ResponseResponse _         GetRequestContext = Request
 
 ResponseNext : (i : ResponseState) (j : ResponseCommand i) → ResponseResponse i j → ResponseState
 ResponseNext .StatusLineOpen (WriteStatus x) x₁ = HeadersOpen
@@ -505,37 +519,38 @@ ResponseNext y   ReadBody x = y
 RESPONSE : ResponseState ▸ ResponseState
 RESPONSE = record { B = ResponseCommand ; C = ResponseResponse ; d = ResponseNext }
 
-writeStatus : Status → Free○ RESPONSE (λ x → Unit) StatusLineOpen
-writeStatus x = step ((WriteStatus x) , stop)
+-- named after Robert Atkey
+data AtKey {I : Set} ( X : Set) ( i : I) : I → Set where
+  at : X → AtKey X i i
 
-writeHeader : Header → Free○ RESPONSE  (λ x → Unit) HeadersOpen
-writeHeader x = step (WriteHeader x , stop)
+writeStatus : Status → Free○ RESPONSE (AtKey Unit HeadersOpen) StatusLineOpen
+writeStatus x = step ((WriteStatus x) , (λ y → stop (at y)))
 
-closeHeaders : Free○ RESPONSE (λ x → Unit) HeadersOpen
-closeHeaders = step ( CloseHeaders , stop)
+writeHeader : Header → Free○ RESPONSE  (AtKey Unit HeadersOpen) HeadersOpen
+writeHeader x = step (WriteHeader x , (λ y → stop (at y )))
 
-send : String → Free○ RESPONSE (λ x → Unit) BodyOpen
-send x = step (Send x , stop)
+closeHeaders : Free○ RESPONSE (AtKey Unit BodyOpen) HeadersOpen
+closeHeaders = step ( CloseHeaders , (λ y → stop (at y)) )
 
-end : Free○ RESPONSE (λ x → Unit) BodyOpen
-end = step (End , stop)
-
-readBody : ∀ {s} → Free○ RESPONSE (λ x → String) s
-readBody = step (ReadBody , stop)
-
-respond respond' : (body : String) → Free○ RESPONSE (λ x → Unit) BodyOpen
-respond body = send body >>= λ x → {!!}
+writeHeaders : Header → Free○ RESPONSE (AtKey Unit BodyOpen) HeadersOpen
+writeHeaders x = writeHeader x >>= (λ { (at _) → closeHeaders})
   where open Monad (free○-Monad RESPONSE)
 
-respond' body = step  {!!}
-  
-  -- Conor I am stuck! :(
-  -- send body >>= λ x → {!end!}
-  -- where open Monad (free○-Monad RESPONSE)
-{-
-respond : (body : String) → Free○ RESPONSE (λ x → Unit) ResponseEnded
-respond body = step ({!!} , stop)
--}
+send : String → Free○ RESPONSE (AtKey Unit BodyOpen) BodyOpen
+send x = step (Send x , (λ y → stop (at y )))
+
+end : Free○ RESPONSE (AtKey Unit ResponseEnded) BodyOpen
+end = step (End , (λ y → stop (at y)))
+
+-- in any state, we can read the request context
+getRequestContext : ∀ {k} → Free○ RESPONSE (AtKey Request k) k
+getRequestContext = step (GetRequestContext , (λ { y → stop (at y) }))
+
+respond : (body : String) → Free○ RESPONSE (AtKey Unit ResponseEnded) BodyOpen
+respond body = send body >>= λ { (at x) → end }
+  where open Monad (free○-Monad RESPONSE)
+
+
 
 -- a server goes through the entire Webmachine statemachine
 Server : Pow ResponseState → Set
