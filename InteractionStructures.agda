@@ -124,7 +124,31 @@ _● : ∀ {I J} → (Φ : J ▸ I) → Pow J → Pow I
   (x : B a) → Σ (C a x) (λ y → P (d a x y))
   where open _▸_ Φ
 
+-- when we take the free monad over ○ we can assign an interpretation to it.
+-- because we can pattern match on the dependent pair, and learn the ocmmand,
+-- and then decide on a proper interpretation.     
 
+-- however the free monad over ● is problematic, as we cannot pattern match
+-- on a function type. We can only produce functions.
+
+-- however, a cofree comonad instance _would_ work!  in order to unfold a Cofree
+-- Comonad, we need to provide a witness for a single step. i.e., construct a functor
+-- inhabitant of ●. And this is possible because we can ceate functions.
+
+-- Again in the analogy of servers and clients, Free ○ signifies a client. We can
+-- receive commands and interpret them, and decide to stop at any time.
+
+-- and the cofree comonad over ● naturally defines a server.  We have an infinite
+-- rose tree  that defines for each state a function that if given a command,
+-- decides to what subtree to go infinitely, always ready to answer questions.
+
+--   foldCofree : (forall x. w x -> f x) -> w a -> Cofree f a
+--    We could for exmaple fold it up to an endless rose tree, that has all possible
+-- server interactions encoded.
+
+
+--   foldFree : (forall x. f x -> m x) -> Free f x -> m a
+-- we could
 
 -- _○ forms a functor in Pow S
 ○-IxFunctor : {I J : Set} (S : I ▸ J) → IxFunctor (S ○)
@@ -152,6 +176,11 @@ data Free○ {I : Set} (Φ : I ▸ I) (X : Pow I) (i : I) : Set where
   stop : (X -:> Free○ Φ X) i
   step : ((Φ ○) (Free○ Φ X) -:> Free○ Φ X) i
 
+-- this has no interpretation As we can no pattern match on
+--  (Φ ●) X, so we can not decide what M X to produce except
+-- for "pure x" which is a very boring interpretation
+-- hence we need to resort to a Cofree Comonad encoding,
+-- at each step we need to produce an inhabitant of (Φ ●) X
 data Free● {I : Set} (Φ : I ▸ I) (X : Pow I) (i : I) : Set where
   stop : (X -:> Free● Φ X) i
   step : ((Φ ●) (Free● Φ X) -:> Free● Φ X) i
