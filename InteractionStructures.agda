@@ -1,47 +1,7 @@
 {-# OPTIONS --copatterns #-}
 module InteractionStructures where
-data Unit : Set where
-  unit : Unit
-  
-data Maybe (a : Set) : Set where
-  Nothing : Maybe a
-  Just  : a → Maybe a 
 
-data ⊥ : Set where
-    
-data Nat : Set where
-  zero : Nat
-  suc  : Nat -> Nat
-{-# BUILTIN NATURAL Nat #-}
-
-_+N_ : Nat -> Nat -> Nat
-zero  +N n = n
-suc m +N n = suc (m +N n)
-infixr 3 _+N_
-
-record Σ {l} ( S : Set l) (T : S → Set l ) : Set l where
-  constructor _,_
-  field
-    fst : S
-    snd : T fst
-open Σ public
-
-data _+_ {l} (S : Set l) (T : Set l) : Set l where
-  inl : S → S + T
-  inr : T → S + T
-  
-record _*_  {l} (S : Set l) (T : Set l) : Set l where
-  constructor _,_
-  field
-    fst : S
-    snd : T
-open _*_ public
-data _≡_ {l} {X : Set l} (x : X) :  X → Set l where
-  refl : x ≡ x
-
-infix 1 _≡_
-{-# BUILTIN EQUALITY _≡_ #-}
-{-# BUILTIN REFL refl #-}
+open import Prelude
 
 -- Subsets of S can be characterized by predicates:
 --  { s ∈ S | P(s) }
@@ -49,14 +9,6 @@ infix 1 _≡_
 
 -- This characterization of subsets gives rise to a functor
 -- in the category Set:
-
-
--- The category Set (without proof)
-id  : {A : Set} → A → A
-id x = x
-_∘_ : {A B C : Set} → (A → B) → (B → C) → (A → C)
-(f ∘ g) x = g (f x) 
-
 Pow : (X : Set) → Set₁
 Pow X = X → Set
 
@@ -121,12 +73,12 @@ compose-assoc f g h = refl
 
   
 -- We define what is a functor between two categories Pow I and Pow J
-record Functor {I J : Set} (F : Pow I → Pow J) : Set1 where
+record IxFunctor {I J : Set} (F : Pow I → Pow J) : Set1 where
   field
     mapIx : {X Y : Pow I} → [ X -:> Y ] → [ F X -:> F Y ]
 
 -- what is a monad on Pow?
-record Monad {W : Set} (F : Pow W → Pow W) : Set1 where
+record IxMonad {W : Set} (F : Pow W → Pow W) : Set1 where
   field
     pure : {P : Pow W} → [ P -:> F P ]
     _=<<_ : {P Q : Pow W} → [ P -:> F Q ] → [ F P -:> F Q ]
@@ -134,7 +86,7 @@ record Monad {W : Set} (F : Pow W → Pow W) : Set1 where
   _>>=_ : ∀ {P Q w} → F P w → (∀ {v} → P v → F Q v) → F Q w
   fp >>= k = k =<< fp
 
-record Comonad {W : Set} (F : Pow W → Pow W) : Set₁ where
+record IxComonad {W : Set} (F : Pow W → Pow W) : Set₁ where
   coinductive
   field
     extract : {P : Pow W} → [ F P -:> P ]
@@ -142,10 +94,10 @@ record Comonad {W : Set} (F : Pow W → Pow W) : Set₁ where
   
 
 -- every monad is trivially a  (endo)functor (without proof here)
-monadFunctor : ∀ {W} {F} → Monad {W} F → Functor {W} {W} F
-monadFunctor M =
+monadIxFunctor : ∀ {W} {F} → IxMonad {W} F → IxFunctor {W} {W} F
+monadIxFunctor M =
   record { mapIx = λ f → (_=<<_) (λ z → pure (f z))}
-  where open Monad M
+  where open IxMonad M
     
 
 -- we now define Peter Hancock's interaction structure
@@ -175,12 +127,12 @@ _● : ∀ {I J} → (Φ : J ▸ I) → Pow J → Pow I
 
 
 -- _○ forms a functor in Pow S
-○-Functor : {I J : Set} (S : I ▸ J) → Functor (S ○)
-○-Functor S = record { mapIx = λ { f (s , k) → s , (λ p → f (k p))} } where open _▸_ S
+○-IxFunctor : {I J : Set} (S : I ▸ J) → IxFunctor (S ○)
+○-IxFunctor S = record { mapIx = λ { f (s , k) → s , (λ p → f (k p))} } where open _▸_ S
 
 -- _● forms a functor in Pow S
-●-Functor : {I J : Set} (S : I ▸ J) → Functor (S ●)
-●-Functor {I} {J} S =
+●-IxFunctor : {I J : Set} (S : I ▸ J) → IxFunctor (S ●)
+●-IxFunctor {I} {J} S =
     record { mapIx = helper } 
     where
         open _▸_ S
@@ -192,7 +144,7 @@ _● : ∀ {I J} → (Φ : J ▸ I) → Pow J → Pow I
         helper f g x with g x
         helper f g x | fst₁ , snd₁ = fst₁ ,  f snd₁
 
--- a client corresponds to a Free Monad, and is given the
+-- a client corresponds to a Free IxMonad, and is given the
 -- choice to provide a command, and then needs to handle any response
 -- and then it can decide to terminate at any time
 -- Corresponds to Hank's _>>○_ 
@@ -207,14 +159,14 @@ data Free● {I : Set} (Φ : I ▸ I) (X : Pow I) (i : I) : Set where
 {-  Note that we could have parameterized over the functor instead,
     yielding your  free monad definition that you are used to, however,
     we do not get Agda concvinced that this data type is strictly positive,
-    hence we thread the ○ Functor into the Free Monad directly.
+    hence we thread the ○ IxFunctor into the Free IxMonad directly.
 data Free { I : Set } (F : Pow I → Pow I) (X : Pow I)  (i : I) : Set where
   stop : (X -:> Free F X) i
   step : ((F (Free F X)) -:> Free F X) i
 -}
 
-free○-Monad : {I : Set} (S : I ▸ I) → Monad (Free○ S)
-free○-Monad S =
+free○-IxMonad : {I : Set} (S : I ▸ I) → IxMonad (Free○ S)
+free○-IxMonad S =
   record
   { pure = stop
   ; _=<<_ = graft
@@ -226,7 +178,7 @@ free○-Monad S =
     graft k (step (s , f)) = step (s , (λ p → graft k (f p)))
 
 
--- a server corresponds to the Cofree Comonad,  It's always alive,
+-- a server corresponds to the Cofree IxComonad,  It's always alive,
 -- and should be ready to choose a response of it's liking any time
 -- that it gets any command
 -- Corresponds to Hank's _>>●_
@@ -237,12 +189,12 @@ record Cofree● {I : Set} (Φ : I ▸ I) (X : Pow I) (i : I) : Set where
     alive : X i
     ready : ((Φ ●) (Cofree● Φ X) ) i
 
--- TODO show that the Cofree Comonad is a Comonad
+-- TODO show that the Cofree IxComonad is a IxComonad
 
 -- TODO Show that given a Free Client and a Cofree Server, we can run a simulation
 
 module  Lol where
-    open Comonad
+    open IxComonad
     open Cofree●
     
     helper : ∀ {I} {S : I ▸ I} {P Q : I → Set} →
@@ -250,9 +202,10 @@ module  Lol where
             {i : I} → Cofree● S P i → Cofree● S Q i
 
     helper x x₁ = {!!}
-    cofreeComonad :  {I : Set} (S : I ▸ I) → Comonad (Cofree● S)
-    extract (cofreeComonad S) = alive
-    extend (cofreeComonad S) =  helper
+    cofreeIxComonad :  {I : Set} (S : I ▸ I) → IxComonad (Cofree● S)
+    extract (cofreeIxComonad S) = alive
+    extend (cofreeIxComonad S) x x₁ with (x x₁)
+    ... | y =  {!!}
    {- 
         alive (helperExtract x)  = ?
         helperExtend : ∀ { P Q } →  [ Cofree● S P -:> Q ] → [ Cofree● S P -:> Cofree● S Q ]
@@ -420,7 +373,7 @@ aborting● = step (λ contradiction → (whatthefuck contradiction) , stop unit
 updating : {i : Nat} → Free○ (update (_+N_ 1)) (λ x → Nat) i
 updating = step (unit , (λ { unit → stop 5}))
   where
-    open Monad (free○-Monad (update (_+N_ 1)))
+    open IxMonad (free○-IxMonad (update (_+N_ 1)))
 
 
 data Bool : Set where tt ff : Bool
@@ -495,7 +448,7 @@ closeFile = step (CloseFile , (λ y → stop y) )
 operations : Free○ FILES (λ x → Char) FileClosed
 operations = openFile >>= λ { unit → {!!}} 
   where
-    open Monad (free○-Monad FILES)
+    open IxMonad (free○-IxMonad FILES)
 -}
 
 
@@ -548,38 +501,45 @@ RESPONSE = record { B = ResponseCommand ; C = ResponseResponse ; d = ResponseNex
 data AtKey {I : Set} ( X : Set) ( i : I) : I → Set where
   at : X → AtKey X i i
 
+
+ipure : {S : Set} → {T : S ▸ S} {X : Set} {s : S} → (x : X) → Free○ T (AtKey X s) s
+ipure x = stop (at x)
+
 writeStatus : Status → Free○ RESPONSE (AtKey Unit HeadersOpen) StatusLineOpen
-writeStatus x = step ((WriteStatus x) , (λ y → stop (at y)))
+writeStatus x = step ((WriteStatus x) , ipure)
 
 writeHeader : Header → Free○ RESPONSE  (AtKey Unit HeadersOpen) HeadersOpen
-writeHeader x = step (WriteHeader x , (λ y → stop (at y )))
+writeHeader x = step (WriteHeader x ,  ipure)
 
 closeHeaders : Free○ RESPONSE (AtKey Unit BodyOpen) HeadersOpen
-closeHeaders = step ( CloseHeaders , (λ y → stop (at y)) )
+closeHeaders = step ( CloseHeaders , ipure) 
+
 
 writeHeaders : Header → Free○ RESPONSE (AtKey Unit BodyOpen) HeadersOpen
 writeHeaders x = writeHeader x >>= ( λ { (at x₁) → closeHeaders }) 
-  where open Monad (free○-Monad RESPONSE)
+  where open IxMonad (free○-IxMonad RESPONSE)
 
 send : String → Free○ RESPONSE (AtKey Unit BodyOpen) BodyOpen
-send x = step (Send x , (λ y → stop (at y )))
+send x = step (Send x , ipure)
 
 end : Free○ RESPONSE (AtKey Unit ResponseEnded) BodyOpen
-end = step (End , (λ y → stop (at y)))
+end = step (End , ipure)
 
 -- in any state, we can read the request context
 getRequestContext : ∀ {k} → Free○ RESPONSE (AtKey Request k) k
-getRequestContext = step (GetRequestContext , (λ { y → stop (at y) }))
+getRequestContext = step (GetRequestContext , ipure)
 
 respond : (body : String) → Free○ RESPONSE (AtKey Unit ResponseEnded) BodyOpen
 respond body = send body >>= λ { (at x) → end }
-  where open Monad (free○-Monad RESPONSE)
+  where open IxMonad (free○-IxMonad RESPONSE)
 
--- if we get two request flows, we can decide which one we take... interesting
--- i'm not yet sure how this is useful
+-- what do we get if we take the sum of two http servers?
+-- we either handle t
 test : Free○ (RESPONSE ⊔ RESPONSE) (AtKey Unit ResponseEnded) StatusLineOpen
-test = step (inr GetRequestContext , (λ { y → {! !}} ))
+test =   {!!}
 
+
+-- what does it mean to take the product of two http servers?
 -- if we get two flows, we must complete both flows ... intersting
 -- i'm not yet sure how this is useful
 test2 : Free○ (RESPONSE ⊓ RESPONSE) (AtKey Unit ResponseEnded) StatusLineOpen
@@ -603,7 +563,7 @@ denyAccess  =
   writeStatus  Unauthorized >>= λ { (at x) →
   writeHeader (WWWAuthenticate "realm arian") >>= λ { (at x₁) →
   closeHeaders >>= λ { (at x₂) → end}}} 
-  where open Monad (free○-Monad RESPONSE)
+  where open IxMonad (free○-IxMonad RESPONSE)
 
 
 if_then_else : {A : Set} (b : Bool) → A → A → A
@@ -622,7 +582,7 @@ server =
      respond "welcome to my server" }) })
   else
     denyAccess})
-  where open Monad (free○-Monad RESPONSE)
+  where open IxMonad (free○-IxMonad RESPONSE)
 
 
 
@@ -636,7 +596,7 @@ server =
 -- by interpreting Free○ HIGHLEVEL   as Free○ LOWLEVEL
 -- by showing there is a natural transformation between the two
 -- however, HIGHLEVEL, and LOWLEVEL are Interaction structures indexed over different state
--- so we need to do some more massaging
+-- so we need to do some more massaging 
 
 Driver :
   {I J : Set}
@@ -645,14 +605,15 @@ Driver :
   (Lo : J ▸ J)
   → Set
 
+-- this is ●○ in literature!!!! 
 Driver {I} {J} Sync Hi Lo
   = ∀ i j
-  → Sync i j
-  → (c : B Hi i)
-  → Σ (B Lo j) λ c'
-  → (r' : C Lo j c')
-  → Σ (C Hi i c) λ r
-  → Sync (d Hi i c r) (d Lo j c' r') 
+  → Sync i j         -- if states i and j are in sync
+  → (c : B Hi i)     -- and for all commands in the high level interface
+  → Σ (B Lo j) λ c'  -- there exists an equivalent in the low level interface
+  → (r' : C Lo j c') -- and for all responses to that equivalent
+  → Σ (C Hi i c) λ r -- we can find a response in the high level interface
+  → Sync (d Hi i c r) (d Lo j c' r')  -- such that the states are _still_ in sync
   where
     open _▸_
 
