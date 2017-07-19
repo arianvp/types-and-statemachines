@@ -627,7 +627,7 @@ server =
 -- however, HIGHLEVEL, and LOWLEVEL are Interaction structures indexed over different state
 -- so we need to do some more massaging 
 
-Driver :
+●○ :
   {I J : Set}
   (Sync : I → J → Set)
   (Hi : I ▸ I)
@@ -635,7 +635,7 @@ Driver :
   → Set
 
 -- this is ●○ in literature!!!! 
-Driver {I} {J} Sync Hi Lo
+●○ {I} {J} Sync Hi Lo
   = ∀ i j
   → Sync i j         -- if states i and j are in sync
   → (c : B Hi i)     -- and for all commands in the high level interface
@@ -650,7 +650,7 @@ drive :
   { I J : Set}
   {Sync : I → J → Set}
   {Hi : I ▸ I} {Lo : J ▸ J}
-  (D : Driver Sync Hi Lo)
+  (D : ●○ Sync Hi Lo)
   {X : Pow I}
   (i : I)(j : J)
   (ij : Sync i j) →
