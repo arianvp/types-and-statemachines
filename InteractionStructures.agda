@@ -26,13 +26,14 @@ Powₐ f x y = x (f y)
 [_] {I} P = {i : I} → P i
 
 
+
 -- Pow  also gives rise to a category for each I, 
 -- where the objects are indexed sets  A : Pow I
 -- and the arrows are elements of  [ A -:> B ] for (A B : Pow I)
-_-:>_ _*:_ _+:_ : {I : Set}(S T : Pow I) -> (Pow I) 
+_-:>_ _×:_ _+:_ : {I : Set}(S T : Pow I) -> (Pow I) 
 
 (S -:> T) i = S i -> T i   -- index-respecting functions
-(S *: T) i = S i * T i     -- index-matching pairs
+(S ×: T) i = S i × T i     -- index-matching pairs
 (S +: T) i = S i + T i     -- index-consistent choice
 
 -- Each object A can be assigned an identity morphism A → A
@@ -104,9 +105,9 @@ monadIxFunctor M =
 -- Connor, whouldn't the arrow be the other way around?
 record _▸_ (I J : Set) : Set₁ where
   field
-    B : Pow J
-    C : (a : J) → ( b : B a) → Set
-    d : (a : J) → (b : B a) →  (c : C a b) → I
+    Cmd : Pow J
+    Resp : (a : J) → ( b : Cmd a) → Set
+    next : (a : J) → (b : Cmd a) →  (c : Resp a b) → I
 
 -- We define two monotone predicate transformers:
 
@@ -114,14 +115,14 @@ record _▸_ (I J : Set) : Set₁ where
 -- able to handle any kind of response to enter the next state
 _○ : ∀ {I J} → (Φ : J ▸ I) → Pow J → Pow I
 (Φ ○) P a =
-  Σ (B a)  (λ x → (y : C a x) → P (d a x y) )
+  Σ (Cmd a)  (λ x → (y : Resp a x) → P (next a x y) )
   where open _▸_ Φ
 
 -- A server : For any command that I receive, I should be able to
 -- produce a response, and proceed to the next state.
 _● : ∀ {I J} → (Φ : J ▸ I) → Pow J → Pow I
 (Φ ●) P a =
-  (x : B a) → Σ (C a x) (λ y → P (d a x y))
+  (x : Cmd a) → Σ (Resp a x) (λ y → P (next a x y))
   where open _▸_ Φ
 
 -- when we take the free monad over ○ we can assign an interpretation to it.
@@ -163,8 +164,8 @@ _● : ∀ {I J} → (Φ : J ▸ I) → Pow J → Pow I
         helper : {X Y : I → Set} →
                 ({i : I} → X i → Y i) →
                 {i : J} →
-                ((x : B i) → Σ (C i x) (λ y → X (d i x y))) →
-                (x : B i) → Σ (C i x) (λ y → Y (d i x y))
+                ((x : Cmd i) → Σ (Resp i x) (λ y → X (next i x y))) →
+                (x : Cmd i) → Σ (Resp i x) (λ y → Y (next i x y))
         helper f g x with g x
         helper f g x | fst₁ , snd₁ = fst₁ ,  f snd₁
 
@@ -247,45 +248,45 @@ module  Lol where
 abort : {S T : Set} → S ▸ T
 abort =
   record
-  { B =  λ x → ⊥
-  ; C = λ { a ()}
-  ; d = λ { a () c}
+  { Cmd =  λ x → ⊥
+  ; Resp = λ { a ()}
+  ; next = λ { a () c}
   }
 
 
 magic : {S T : Set} → S ▸ T
 magic =
   record
-  { B =  λ x → Unit
-  ; C =  λ a b →  ⊥
-  ; d = λ a b → λ ()
+  { Cmd =  λ x → Unit
+  ; Resp =  λ a b →  ⊥
+  ; next = λ a b → λ ()
   }
 
 -- update the state determinisetically
 update : { S  : Set} → (S → S) → S ▸ S
 update f =
   record
-  { B = λ s → Unit
-  ; C = λ a b → Unit
-  ; d = λ a b c → f a
+  { Cmd = λ s → Unit
+  ; Resp = λ a b → Unit
+  ; next = λ a b c → f a
   }
 
 -- note that abort = assert(False)
 assert : {S : Set} (F : Pow S) → S ▸ S
 assert F = 
   record
-  { B = F
-  ; C =  λ a b → Unit
-  ; d = λ a b c → a
+  { Cmd = F
+  ; Resp =  λ a b → Unit
+  ; next = λ a b c → a
   }
 
 -- magic = assert(True)
 assume : {S : Set} (F : Pow S) → S ▸ S
 assume F =
   record
-  { B = λ x → Unit
-  ; C = λ a b → F a
-  ; d = λ a b c → a
+  { Cmd = λ x → Unit
+  ; Resp = λ a b → F a
+  ; next = λ a b c → a
   }
 
 -- angelic choice (Given two possible states, choose which
@@ -293,12 +294,12 @@ assume F =
 _⊔_ : {S : Set} (Φ₁ : S ▸ S) (Φ₂ : S ▸ S) → S ▸ S
 Φ₁ ⊔ Φ₂ =
   record
-  { B = (B Φ₁) +: (B Φ₂) 
-  ; C = λ { k (inl x) → C Φ₁ k x
-          ; k (inr x) → C Φ₂ k x
+  { Cmd = (Cmd Φ₁) +: (Cmd Φ₂) 
+  ; Resp = λ { k (inl x) → Resp Φ₁ k x
+          ; k (inr x) → Resp Φ₂ k x
           }
-  ; d = λ { k (inl x) r → d Φ₁ k x r
-          ; k (inr x) r → d Φ₂ k x r
+  ; next = λ { k (inl x) r → next Φ₁ k x r
+          ; k (inr x) r → next Φ₂ k x r
           }
   }
   where open _▸_
@@ -308,48 +309,49 @@ _⊔_ : {S : Set} (Φ₁ : S ▸ S) (Φ₂ : S ▸ S) → S ▸ S
 _⊓_ : {S : Set} (Φ₁ : S ▸ S) (Φ₂ : S ▸ S) → S ▸ S
 Φ₁ ⊓ Φ₂ =
   record
-  { B =  B Φ₁ *: B Φ₂
-  ; C = λ { k (c1 , c2) →  C Φ₁ k c1 + C Φ₂ k c2 }
-  ; d = λ { k (c1 , c2) (inl x) → d Φ₁ k c1 x 
-          ; k (c1 , c2) (inr x) → d Φ₂ k c2 x
+  { Cmd =  Cmd Φ₁ ×: Cmd Φ₂
+  ; Resp = λ { k (c1 , c2) →  Resp Φ₁ k c1 + Resp Φ₂ k c2 }
+  ; next = λ { k (c1 , c2) (inl x) → next Φ₁ k c1 x 
+          ; k (c1 , c2) (inr x) → next Φ₂ k c2 x
           } 
   }
   where open _▸_
 
 -- add constant information J to the right hand side
-growRight : {I J : Set } → I ▸ I → (I * J) ▸ (I * J)
+growRight : {I J : Set } → I ▸ I → (I × J) ▸ (I × J)
 growRight  x =
   record
-  { B = λ { (i , _) → B x i }
-  ; C = λ { (i , _) b → C x i b}
-  ; d = λ { (i , j) b c → d x i b c , j }
+  { Cmd = λ { (i , _) → Cmd x i }
+  ; Resp = λ { (i , _) b → Resp x i b}
+  ; next = λ { (i , j) b c → next x i b c , j }
   }
   where open _▸_
 
 -- add constant information J to the left hand site 
-growLeft : {I J : Set } → I ▸ I → (J * I) ▸ (J * I)
+growLeft : {I J : Set } → I ▸ I → (J × I) ▸ (J × I)
 growLeft  x =
   record
-  { B = λ { (_ , i) → B x i }
-  ; C = λ { (_ , i) b → C x i b}
-  ; d = λ { (j , i) b c → j , d x i b c }
+  { Cmd = λ { (_ , i) → Cmd x i }
+  ; Resp = λ { (_ , i) b → Resp x i b}
+  ; next = λ { (j , i) b c → j , next x i b c }
   }
   where open _▸_
 
 -- combine two interfaces that operate independently on separate
 -- state.  Commands from one do not affect the other
-_⊗_ : {I J : Set} → I ▸ I → J ▸ J → (I * J) ▸ (I * J)
+_⊗_ : {I J : Set} → I ▸ I → J ▸ J → (I × J) ▸ (I × J)
 _⊗_ {I} {J} x y with growRight {I} {J} x | growLeft {J} {I} y
-_⊗_ {I} {J} x y | record { B = B ; C = C ; d = d } | record { B = B₁ ; C = C₁ ; d = d₁ } = record { B = {!!} ; C = {!!} ; d = {!!} }
+_⊗_ {I} {J} x y | record { Cmd = Cmd ; Resp = Resp ; next = next } | record { Cmd = Cmd₁ ; Resp = Resp₁ ; next = next₁ } =
+  record { Cmd = {!!} ;  Resp = {!!} ; next = {!!} }
 
 --  Sequential composition flavors
 -- note that we have folded these into the Free monad definitions. we do not need them
 _>>○_ : ∀ {I J K} (Φ₁ : J ▸ I) → (Φ₂ : K ▸ J) → (K ▸ I)
 _>>○_ Φ₁ Φ₂ =
   record
-  { B =  (Φ₁ ○) (B Φ₂)
-  ; C =  λ { a (b₁ , b₂) → Σ (C Φ₁ a b₁) (λ c₁ → C Φ₂ (d Φ₁ a b₁ c₁) (b₂ c₁)) }
-  ; d =  λ { a (b₁ , b₂) (c₁ , c₂) → d Φ₂ (d Φ₁ a b₁ c₁) (b₂ c₁) c₂}
+  { Cmd =  (Φ₁ ○) (Cmd Φ₂)
+  ; Resp =  λ { a (b₁ , b₂) → Σ (Resp Φ₁ a b₁) (λ c₁ → Resp Φ₂ (next Φ₁ a b₁ c₁) (b₂ c₁)) }
+  ; next =  λ { a (b₁ , b₂) (c₁ , c₂) → next Φ₂ (next Φ₁ a b₁ c₁) (b₂ c₁) c₂}
   }
   where open _▸_
 
@@ -357,9 +359,9 @@ _>>○_ Φ₁ Φ₂ =
 _>>●_ : ∀ {I J K} (Φ₁ : J ▸ I) → (Φ₂ : K ▸ J) → (K ▸ I)
 _>>●_ Φ₁ Φ₂ =
   record
-    { B = (Φ₁ ●) (B Φ₂)
-    ; C =  λ { s t → Σ (B Φ₁ s) (λ c1 → C Φ₂ (d Φ₁ s c1 (fst (t c1))) (snd (t c1)))} 
-    ; d = λ { s t (c1 , r2) → d Φ₂ (d Φ₁ s c1 (fst (t c1))) ( snd (t c1)) r2 }
+    { Cmd = (Φ₁ ●) (Cmd Φ₂)
+    ; Resp =  λ { s t → Σ (Cmd Φ₁ s) (λ c1 → Resp Φ₂ (next Φ₁ s c1 (fst (t c1))) (snd (t c1)))} 
+    ; next = λ { s t (c1 , r2) → next Φ₂ (next Φ₁ s c1 (fst (t c1))) ( snd (t c1)) r2 }
     }
 
   where open _▸_
@@ -433,7 +435,7 @@ writeNext .opened (writeChar x) r = opened
 writeNext .opened closeWrite r = closed
 
 WRITE : WriteState ▸ WriteState
-WRITE = record { B = WriteCommand ; C = WriteResponse ; d = writeNext }
+WRITE = record { Cmd = WriteCommand ; Resp = WriteResponse ; next = writeNext }
 
 data ReadState : Set where
   opened : (eof : Bool) → ReadState
@@ -458,7 +460,7 @@ readNext .(opened tt) readChar (Just x) = opened ff
 readNext .(opened _) closeRead r = closed 
 
 READ : ReadState ▸ ReadState
-READ = record { B = ReadCommand ; C = ReadResponse ; d = readNext }
+READ = record { Cmd = ReadCommand ; Resp = ReadResponse ; next = readNext }
 
 -- Now we want to combine READ and WRITE for a CP interface
 
@@ -524,7 +526,7 @@ ResponseNext y   ReadBody x = y
 
 
 RESPONSE : ResponseState ▸ ResponseState
-RESPONSE = record { B = ResponseCommand ; C = ResponseResponse ; d = ResponseNext }
+RESPONSE = record { Cmd = ResponseCommand ; Resp = ResponseResponse ; next = ResponseNext }
 
 -- named after Robert Atkey
 data AtKey {I : Set} ( X : Set) ( i : I) : I → Set where
@@ -638,13 +640,29 @@ server =
 ●○ {I} {J} Sync Hi Lo
   = ∀ i j
   → Sync i j         -- if states i and j are in sync
-  → (c : B Hi i)     -- and for all commands in the high level interface
-  → Σ (B Lo j) λ c'  -- there exists an equivalent in the low level interface
-  → (r' : C Lo j c') -- and for all responses to that equivalent
-  → Σ (C Hi i c) λ r -- we can find a response in the high level interface
-  → Sync (d Hi i c r) (d Lo j c' r')  -- such that the states are _still_ in sync
+  → (c : Cmd Hi i)     -- and for all commands in the high level interface
+  → Σ (Cmd Lo j) λ c'  -- there exists an equivalent in the low level interface
+  → (r' : Resp Lo j c') -- and for all responses to that equivalent
+  → Σ (Resp Hi i c) λ r -- we can find a response in the high level interface
+  → Sync (next Hi i c r) (next Lo j c' r')  -- such that the states are _still_ in sync
   where
     open _▸_
+
+module Lemma where
+  open _▸_
+  lemma : ∀ {I J} {Sync : I → J → Set} (Hi : I ▸ I) {Lo : J ▸ J}
+          {X : I → Set} (i : I) {j : J} {cmdₗ : Cmd Lo j} (cmdₕ : Cmd Hi i) →
+        ((y : Resp Hi i cmdₕ) → X (next Hi i cmdₕ y)) →
+        ((r' : Resp Lo j cmdₗ) →
+         Σ (Resp Hi i cmdₕ)
+         (λ r → Sync (next Hi i cmdₕ r) (next Lo j cmdₗ r'))) →
+        (y : Resp Lo j cmdₗ) →
+        Σ I (λ i₁ → Sync i₁ (next Lo j cmdₗ y) × X i₁)
+
+  lemma Hi i cmdₕ condₕ condₗ respₗ with condₗ respₗ
+  lemma Hi i cmdₕ condₕ condₗ respₗ | respₕ , syncNext = next Hi i cmdₕ respₕ , (syncNext , condₕ respₕ)
+
+open Lemma
 
 drive :
   { I J : Set}
@@ -652,13 +670,20 @@ drive :
   {Hi : I ▸ I} {Lo : J ▸ J}
   (D : ●○ Sync Hi Lo)
   {X : Pow I}
-  (i : I)(j : J)
+  (i : I) (j : J)
   (ij : Sync i j) →
-  (Hi ○) X i → (Lo ○) (λ j → Σ I λ i → Sync i j * X i) j
+  (Hi ○) X i → (Lo ○) (λ j → Σ I λ i → Sync i j × X i) j
 
-drive = λ D i j ij x → {!!} , {!!}
+drive D i j ij (cmdₕ , condₕ) with D i j ij cmdₕ
+drive {Hi = Hi} D i j ij (cmdₕ , condₕ) | cmdₗ , condₗ = cmdₗ ,  lemma Hi i cmdₕ condₕ condₗ
+  where open _▸_
   
   
+
+
+
+
+
     
 data HaskellIOCommand : Set where
   putStrLn : String → HaskellIOCommand
@@ -670,7 +695,7 @@ HaskellIOResponse readLine = String
 
 
 HASKELLIO : Unit ▸ Unit
-HASKELLIO = record { B =  λ x → HaskellIOCommand ; C = λ x → HaskellIOResponse ; d = λ a b c → unit }
+HASKELLIO = record { Cmd =  λ x → HaskellIOCommand ; Resp = λ x → HaskellIOResponse ; next = λ a b c → unit }
 
 
 
@@ -679,3 +704,5 @@ runServer : ∀ {X} → Free○ RESPONSE (AtKey X ResponseEnded)  StatusLineOpen
 runServer (stop ())
 runServer (step (WriteStatus x , snd₁)) = step {!!}
 runServer (step (GetRequestContext , snd₁)) = step {!!}
+
+
