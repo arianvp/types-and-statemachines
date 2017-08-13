@@ -31,16 +31,41 @@ interface IxFunctor (f : Pow i -> Pow j) where
   mapIx : Always (x :-> y) -> Always (f x :-> f y)
   
 infixl 3 =<<
-interface IxFunctor f => IxMonad (f : Pow w -> Pow w) where
+interface IxMonad (f : Pow w -> Pow w) where
   pure : Always (p :-> f p)
   (=<<) : Always (p :-> f q) -> Always (f p :-> f q)
 
 
-data Free : (f : Pow i -> Pow j) -> (x : Pow i) -> (j : i) -> Type where
-  Stop : (x :-> Free f x) i
-  Step : (f (Free f x) :-> Free f x) i
+namespace Normal
+    data Free : (Type -> Type) -> (Type -> Type) where
+      Stop : x -> Free f x
+      Step : f (Free f x) -> Free f x
+    
+      
+namespace Indexed
+  interface Functor (f : Pow w -> Pow w) where
+    map : (x i -> y i) -> f x i -> f y i
 
+    
+  interface Functor f => Monad (f : Pow w -> Pow w) where
+    pure : x i -> f x i
+    (>>=) : f x i -> (x i -> f y i) -> f y i
+    
+  data Free : (Pow w -> Pow w) -> (Pow w -> Pow w) where
+    Stop : x i -> Indexed.Free f x i
+    Step : f (Indexed.Free f x) i -> Indexed.Free f x i
 
+  Indexed.Functor f => Indexed.Functor (Indexed.Free f) where
+    map g val = assert_total (case val of
+                                   (Stop x) => Stop (g x)
+                                   (Step x) => Step (map (Indexed.map g) x))
+
+  Indexed.Functor f => Indexed.Monad (Indexed.Free f) where
+    pure = Stop
+    m >>= f = assert_total (case m of
+                              (Stop x) => f x
+                              (Step x) => Step (map (>>= f) x))
+  
 record InteractionStructure i j (v : Pow i) where
   constructor MkInteractionStructure
   Command : Pow j
