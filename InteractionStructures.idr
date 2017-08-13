@@ -26,16 +26,6 @@ infixr 3 :+
 (:+) S T i  = Either (S i)  (T i)
 
 
--- Functors over indexed sets
-interface IxFunctor (f : Pow i -> Pow j) where
-  mapIx : Always (x :-> y) -> Always (f x :-> f y)
-  
-infixl 3 =<<
-interface IxMonad (f : Pow w -> Pow w) where
-  pure : Always (p :-> f p)
-  (=<<) : Always (p :-> f q) -> Always (f p :-> f q)
-
-
 namespace Normal
     data Free : (Type -> Type) -> (Type -> Type) where
       Stop : x -> Free f x
@@ -58,22 +48,23 @@ namespace Indexed
   Indexed.Functor f => Indexed.Functor (Indexed.Free f) where
     map g val = assert_total (case val of
                                    (Stop x) => Stop (g x)
-                                   (Step x) => Step (map (Indexed.map g) x))
+                                   (Step x) => Step (Indexed.map (Indexed.map g) x))
 
   Indexed.Functor f => Indexed.Monad (Indexed.Free f) where
     pure = Stop
     m >>= f = assert_total (case m of
                               (Stop x) => f x
-                              (Step x) => Step (map (>>= f) x))
+                              (Step x) => Step (Indexed.map (>>= f) x))
   
-record InteractionStructure i j (v : Pow i) where
+record InteractionStructure (v : Type) (w : Type) where
   constructor MkInteractionStructure
-  Command : Pow j
-  Response : (a : j) -> Pow (Command a)
-  nextState : (a : j) -> (b : Command a) ->  Response a b -> i
-  view : (a : j) -> (b : Command a) -> (c : Response a b) -> v (nextState a b c)
+  Cmd : Pow v
+  Resp : (state : v) -> (cmd : Cmd state) -> Type
+  nextState : (state : v) -> (cmd : Cmd state) -> (resp : Resp state cmd) -> w
   
 
+ISC : InteractionStructure i j -> Pow j -> Pow i
+ISC is p i = ?help
 
 data CounterCommand : Pow Nat where
   Reset : CounterCommand x
