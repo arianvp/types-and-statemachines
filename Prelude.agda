@@ -30,18 +30,17 @@ data _+_ {l} (S : Set l) (T : Set l) : Set l where
   inl : S → S + T
   inr : T → S + T
   
-record _*_  {l} (S : Set l) (T : Set l) : Set l where
+record _×_  {l} (S : Set l) (T : Set l) : Set l where
   constructor _,_
   field
     fst : S
     snd : T
-open _*_ public
+open _×_ public
 data _≡_ {l} {X : Set l} (x : X) :  X → Set l where
   refl : x ≡ x
 
 infix 1 _≡_
 {-# BUILTIN EQUALITY _≡_ #-}
-{-# BUILTIN REFL refl #-}
 
 
 
@@ -50,3 +49,12 @@ id  : {A : Set} → A → A
 id x = x
 _∘_ : {A B C : Set} → (A → B) → (B → C) → (A → C)
 (f ∘ g) x = g (f x) 
+
+
+data Bool : Set where tt ff : Bool
+
+postulate Char : Set
+{-# BUILTIN CHAR Char #-}
+
+postulate String : Set
+{-# BUILTIN STRING String #-}
