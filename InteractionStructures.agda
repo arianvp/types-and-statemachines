@@ -342,7 +342,7 @@ growLeft  x =
 _⊗_ : {I J : Set} → I ▸ I → J ▸ J → (I × J) ▸ (I × J)
 _⊗_ {I} {J} x y with growRight {I} {J} x | growLeft {J} {I} y
 _⊗_ {I} {J} x y | record { Cmd = Cmd ; Resp = Resp ; next = next } | record { Cmd = Cmd₁ ; Resp = Resp₁ ; next = next₁ } =
-  record { Cmd = {!!} ;  Resp = {!!} ; next = {!!} }
+  record { Cmd = λ z → Cmd₁ (fst z , snd z) ;  Resp = λ a b → Cmd₁ (fst a , snd a) ; next = λ a b c → fst a , snd a }
 
 --  Sequential composition flavors
 -- note that we have folded these into the Free monad definitions. we do not need them
@@ -406,14 +406,6 @@ updating = step (unit , (λ { unit → stop 5}))
   where
     open IxMonad (free○-IxMonad (update (_+N_ 1)))
 
-
-data Bool : Set where tt ff : Bool
-
-postulate Char : Set
-{-# BUILTIN CHAR Char #-}
-
-postulate String : Set
-{-# BUILTIN STRING String #-}
 
 
 data WriteState : Set where
@@ -664,6 +656,8 @@ module Lemma where
 
 open Lemma
 
+
+  
 drive :
   { I J : Set}
   {Sync : I → J → Set}
@@ -675,11 +669,27 @@ drive :
   (Hi ○) X i → (Lo ○) (λ j → Σ I λ i → Sync i j × X i) j
 
 drive D i j ij (cmdₕ , condₕ) with D i j ij cmdₕ
-drive {Hi = Hi} D i j ij (cmdₕ , condₕ) | cmdₗ , condₗ = cmdₗ ,  lemma Hi i cmdₕ condₕ condₗ
+drive {Hi = Hi} D i j ij (cmdₕ , condₕ) | cmdₗ , condₗ = cmdₗ ,  (λ y → next Hi i cmdₕ (fst (condₗ y)) , (snd (condₗ y) , condₕ (fst (condₗ y)))) 
+
   where open _▸_
   
-  
 
+drive2 :
+  { I J : Set}
+  {Sync : I → J → Set}
+  {Hi : I ▸ I} {Lo : J ▸ J}
+  (D : ●○ Sync Hi Lo)
+  {X : Pow I}
+  (i : I) (j : J)
+  (ij : Sync i j) →
+  Free○  Hi X i →
+  Free○ Lo (λ j → Σ I λ i → Sync i j × X i) j
+
+
+drive2 D i j ij (stop x) = stop (i , (ij , x))
+drive2 D i j ij (step (fst₁ , snd₁)) with D i j ij fst₁
+drive2 D i j ij (step (fst₁ , snd₁)) | fst₂ , snd₂ = {!!}
+  where open _▸_
 
 
 
@@ -705,4 +715,11 @@ runServer (stop ())
 runServer (step (WriteStatus x , snd₁)) = step {!!}
 runServer (step (GetRequestContext , snd₁)) = step {!!}
 
+
+
+
+-- Hypermedia as the Engine of Application State
+
+data Path (i o : Set) : Set where
+  
 
