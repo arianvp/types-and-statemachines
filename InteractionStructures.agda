@@ -340,9 +340,8 @@ growLeft  x =
 -- combine two interfaces that operate independently on separate
 -- state.  Commands from one do not affect the other
 _⊗_ : {I J : Set} → I ▸ I → J ▸ J → (I × J) ▸ (I × J)
-_⊗_ {I} {J} x y with growRight {I} {J} x | growLeft {J} {I} y
-_⊗_ {I} {J} x y | record { Cmd = Cmd ; Resp = Resp ; next = next } | record { Cmd = Cmd₁ ; Resp = Resp₁ ; next = next₁ } =
-  record { Cmd = λ z → Cmd₁ (fst z , snd z) ;  Resp = λ a b → Cmd₁ (fst a , snd a) ; next = λ a b c → fst a , snd a }
+_⊗_ {I} {J} ii jj = growLeft jj ⊔ growRight ii
+  
 
 --  Sequential composition flavors
 -- note that we have folded these into the Free monad definitions. we do not need them
@@ -455,7 +454,7 @@ drive {Hi = Hi} D i j ij (cmdₕ , condₕ) | cmdₗ , condₗ = cmdₗ ,  (λ y
 
   where open _▸_
   
-
+{-
 drive2 :
   { I J : Set}
   {Sync : I → J → Set}
@@ -472,3 +471,4 @@ drive2 D i j ij (stop x) = stop (i , (ij , x))
 drive2 D i j ij (step (fst₁ , snd₁)) with D i j ij fst₁
 drive2 D i j ij (step (fst₁ , snd₁)) | fst₂ , snd₂ = {!!}
   where open _▸_
+-}
