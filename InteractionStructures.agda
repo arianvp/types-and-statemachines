@@ -177,6 +177,7 @@ data Free○ {I : Set} (Φ : I ▸ I) (X : Pow I) (i : I) : Set where
   stop : (X -:> Free○ Φ X) i
   step : ((Φ ○) (Free○ Φ X) -:> Free○ Φ X) i
 
+
 -- this has no interpretation As we can no pattern match on
 --  (Φ ●) X, so we can not decide what M X to produce except
 -- for "pure x" which is a very boring interpretation
@@ -243,6 +244,8 @@ record Cofree● {I : Set} (Φ : I ▸ I) (X : Pow I) (i : I) : Set where
         ...| z = ? 
     -}
 
+skip : {S : Set} → S ▸ S
+skip = record { Cmd = λ x → Unit ; Resp = λ a b → Unit ; next = λ a b c → a }
 
 -- some stuff from Hank's thesis
 abort : {S T : Set} → S ▸ T
@@ -303,6 +306,9 @@ _⊔_ : {S : Set} (Φ₁ : S ▸ S) (Φ₂ : S ▸ S) → S ▸ S
           }
   }
   where open _▸_
+
+
+
     
 -- demonic choice we need to be able to respond to both
 -- (server)
@@ -340,7 +346,7 @@ growLeft  x =
 -- combine two interfaces that operate independently on separate
 -- state.  Commands from one do not affect the other
 _⊗_ : {I J : Set} → I ▸ I → J ▸ J → (I × J) ▸ (I × J)
-_⊗_ {I} {J} ii jj = growLeft jj ⊔ growRight ii
+_⊗_ {I} {J} ii jj = growRight ii ⊔ growLeft jj
   
 
 --  Sequential composition flavors
@@ -397,7 +403,6 @@ aborting○ (step (contra , _)) = inr contra
 -- abort can always be produced
 aborting● : Free● abort (λ _ → Unit) unit
 aborting● = step (λ contradiction → (whatthefuck contradiction) , stop unit)
-
 
 -- what does this do exactly, nobody is sure
 updating : {i : Nat} → Free○ (update (_+N_ 1)) (λ x → Nat) i
@@ -472,3 +477,13 @@ drive2 D i j ij (step (fst₁ , snd₁)) with D i j ij fst₁
 drive2 D i j ij (step (fst₁ , snd₁)) | fst₂ , snd₂ = {!!}
   where open _▸_
 -}
+
+
+data AtKey {I : Set} ( X : Set) ( i : I) : I → Set where
+  at : X → AtKey X i i
+
+-- Turing Completenes for free
+
+
+-- A pointed interactive system is an interactive system wit
+-- a distinguished 'start' state
