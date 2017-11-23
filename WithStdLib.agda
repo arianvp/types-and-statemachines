@@ -104,21 +104,16 @@ module Indexed where
   put x = do (Put x , return? ∘ at)
     where open RawPMonad rawPMonad
 
+  -- Vraag aan Wouter: Ik pattern match nergens op  U, dus volgens mij
+  -- kan ik U vervangen door Set, maar dan compilet het niet meer
 
-  {-prog : State ℕ ⋆ Bool
-  prog =
-    get         >>= λ n →
-    put (suc n) >>
-    return true
+  prog : (State ⋆ AtKey Bool ⊤ᵤ) ℕᵤ
+  prog = get ?>= λ
+    { (at zero) → put tt ?>= λ { (at x) →
+          return? (at Bool.false)}
+    ; (at (suc x)) → put zero ?>=  λ { (at tt) →
+          put tt ?>= λ { (at x₁) → return? (at Bool.true)}}
+    }
     where
-    open RawMonad rawMonad
-  
-  runState : ∀ {S X} → State S ⋆ X → (S → X ⟨×⟩ S)
-  runState (sup (inj₁ x) f) s = x , s
-  runState (sup (inj₂ Get) f) s = runState (f s) s
-  runState (sup (inj₂ (Put s')) f) s = runState (f tt) s'
-  
-  test : runState prog 0 ≡ (true , 1)
-  test = refl
--}
-  
+    open RawPMonad rawPMonad
+
